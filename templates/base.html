@@ -46,38 +46,73 @@
       }
     });
 
-    // Glisser-déposer des enveloppes par leur poignée, à l'intérieur de leur section
-    // (une liste .cartes par type) ; le nouvel ordre est enregistré au lâcher.
+    // Réordonner les enveloppes : appui long (0,5 s) sur une carte, puis glissement vertical
+    // à l'intérieur de sa section ; le nouvel ordre est enregistré au lâcher.
+    let geste = null;
     document.addEventListener("pointerdown", (evenement) => {
-      const poignee = evenement.target.closest(".poignee");
-      if (!poignee) return;
-      evenement.preventDefault();
-      const carte = poignee.closest("li");
-      const liste = carte.parentElement;
-      carte.classList.add("deplacee");
-      const deplacer = (e) => {
-        const voisine = [...liste.children].find((li) => {
-          const r = li.getBoundingClientRect();
-          return li !== carte && e.clientY > r.top && e.clientY < r.bottom;
-        });
-        if (voisine) {
-          const avant = e.clientY < voisine.getBoundingClientRect().top + voisine.offsetHeight / 2;
-          liste.insertBefore(carte, avant ? voisine : voisine.nextSibling);
-        }
-      };
-      const lacher = () => {
-        carte.classList.remove("deplacee");
-        document.removeEventListener("pointermove", deplacer);
-        document.removeEventListener("pointerup", lacher);
-        document.removeEventListener("pointercancel", lacher);
-        const donnees = new URLSearchParams([...liste.children].map((li) => ["id", li.dataset.id]));
-        fetch("/enveloppes/ordre", { method: "POST", body: donnees });
-      };
-      // Écoute sur le document : la carte change de place dans le DOM pendant le geste.
-      document.addEventListener("pointermove", deplacer);
-      document.addEventListener("pointerup", lacher);
-      document.addEventListener("pointercancel", lacher);
+      const carte = evenement.target.closest(".cartes li");
+      if (!carte || evenement.button > 0) return;
+      const departY = evenement.clientY;
+      geste = { carte, departY, actif: false };
+      geste.minuterie = setTimeout(() => {
+        geste.actif = true;
+        geste.depart = departY;
+        carte.classList.add("deplacee");
+        navigator.vibrate?.(15);
+      }, 500);
     });
+    document.addEventListener("pointermove", (evenement) => {
+      if (!geste) return;
+      if (!geste.actif) {
+        // Le doigt bouge avant la fin de l'appui : c'est un défilement, pas un déplacement.
+        if (Math.abs(evenement.clientY - geste.departY) > 8) annulerGeste();
+        return;
+      }
+      const { carte } = geste;
+      const liste = carte.parentElement;
+      const precedente = carte.previousElementSibling;
+      const suivante = carte.nextElementSibling;
+      let decalage = evenement.clientY - geste.depart;
+      const avant = carte.offsetTop;
+      if (suivante && decalage > suivante.offsetHeight / 2) {
+        liste.insertBefore(carte, suivante.nextElementSibling);
+      } else if (precedente && decalage < -precedente.offsetHeight / 2) {
+        liste.insertBefore(carte, precedente);
+      }
+      geste.depart += carte.offsetTop - avant;
+      decalage = evenement.clientY - geste.depart;
+      // En ligne droite, sans sortir de la section.
+      const haut = liste.firstElementChild.offsetTop - carte.offsetTop;
+      const bas = liste.lastElementChild.offsetTop - carte.offsetTop;
+      carte.style.transform = `translateY(${Math.min(Math.max(decalage, haut), bas)}px)`;
+    });
+    function bloquerClic(evenement) {
+      evenement.preventDefault();
+      evenement.stopPropagation();
+    }
+    function annulerGeste() {
+      clearTimeout(geste.minuterie);
+      geste = null;
+    }
+    function finirGeste() {
+      if (!geste) return;
+      const { carte, actif } = geste;
+      annulerGeste();
+      if (!actif) return;
+      carte.classList.remove("deplacee");
+      carte.style.transform = "";
+      // Le relâchement ne doit pas ouvrir l'enveloppe.
+      document.addEventListener("click", bloquerClic, { capture: true, once: true });
+      setTimeout(() => document.removeEventListener("click", bloquerClic, { capture: true }), 0);
+      const ids = [...carte.parentElement.children].map((li) => ["id", li.dataset.id]);
+      fetch("/enveloppes/ordre", { method: "POST", body: new URLSearchParams(ids) });
+    }
+    document.addEventListener("pointerup", finirGeste);
+    document.addEventListener("pointercancel", () => geste && !geste.actif && annulerGeste());
+    // Pendant le déplacement, le doigt ne fait pas défiler la page.
+    document.addEventListener("touchmove", (e) => { if (geste?.actif) e.preventDefault(); },
+                              { passive: false });
+    document.addEventListener("contextmenu", (e) => { if (e.target.closest(".cartes li")) e.preventDefault(); });
 
     document.addEventListener("htmx:afterRequest", (evenement) => {
       if (evenement.detail.successful) {

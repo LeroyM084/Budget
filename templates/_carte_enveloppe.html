@@ -1,5 +1,5 @@
 <li data-id="{{ enveloppe.id }}">
-  <a class="carte" href="{{ url_for('voir_enveloppe', id=enveloppe.id) }}">
+  <a class="carte" draggable="false" href="{{ url_for('voir_enveloppe', id=enveloppe.id) }}">
     <span class="icone">
       {%- if enveloppe.type == "physique" %}
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -17,7 +17,4 @@
     <span class="nom">{{ enveloppe.nom }}</span>
     <span class="montant{% if enveloppe.solde < 0 %} negatif{% endif %}">{{ enveloppe.solde|euros }}</span>
   </a>
-  <span class="poignee" aria-hidden="true" title="Glisser pour déplacer">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
-  </span>
 </li>

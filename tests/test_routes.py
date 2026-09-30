@@ -831,10 +831,13 @@ def test_ordre_refuse(app, client, autre, cas):
     assert client.post("/enveloppes/ordre", data={"id": ids}).status_code == 400
 
 
-def test_poignee_de_deplacement(app, client):
-    creer_enveloppe(app, "Courses")
+def test_cartes_deplacables_par_appui_long(app, client):
+    id = creer_enveloppe(app, "Courses")
+    page = client.get("/").get_data(as_text=True)
 
-    assert 'class="poignee"' in client.get("/").get_data(as_text=True)
+    assert f'<li data-id="{id}">' in page
+    assert 'class="carte" draggable="false"' in page
+    assert "poignee" not in page
 
 
 def test_migration_d_une_base_sans_comptes(tmp_path, monkeypatch):

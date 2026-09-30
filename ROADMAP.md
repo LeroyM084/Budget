@@ -266,7 +266,7 @@ Critères d'acceptation :
   - Limitation stricte des essais : 5 échecs par période glissante de 15 minutes, par IP et par identifiant ; au-delà, réponse 429.
   - Session de 30 jours ; changer le mot de passe ferme les sessions ouvertes.
 - **Comptes séparés** (ajoutés à ma demande) : chaque compte a ses propres enveloppes et mouvements ; les données d'avant appartiennent au premier compte créé.
-- **Ordre des enveloppes** : glisser-déposer par une poignée, à l'intérieur de sa section (Physique ou Dématérialisé), ordre enregistré.
+- **Ordre des enveloppes** : appui long (0,5 s) sur une carte puis glissement vertical, à l'intérieur de sa section (Physique ou Dématérialisé) ; ordre enregistré.
 
 ## Phase 8 — Déploiement sur le homelab
 
