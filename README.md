@@ -46,20 +46,46 @@ Dans Portainer, la même commande se lance depuis la console du conteneur.
 
 ## Docker
 
-L'image lance Gunicorn (2 workers) sur le port 8000, sans le publier sur l'hôte : le proxy
-(Caddy ou cloudflared) joint l'application à l'adresse `http://enveloppes:8000` par son propre
-réseau Docker, dont le nom se règle avec la variable `CADDY_NETWORK` (`caddy` par défaut).
-Les données sont dans le volume `enveloppes_donnees`, monté sur `/data`.
+L'image lance Gunicorn (2 workers) sur le port 8000, sans le publier sur l'hôte. Le conteneur
+n'est relié qu'au réseau Docker `enveloppes_net` : Caddy rejoint ce réseau pour atteindre
+l'application à l'adresse `http://enveloppes:8000`. Les données sont dans le volume
+`enveloppes_donnees`, monté sur `/data`.
 
 ```sh
 docker compose up -d --build
 ```
 
 Avec Portainer : créer la stack depuis le dépôt Git (la construction de l'image a besoin des
-sources), la nommer `enveloppes` et définir `CADDY_NETWORK` dans ses variables d'environnement.
-Chaque redéploiement reconstruit l'image avec le code à jour.
+sources) et la nommer `enveloppes`. Chaque redéploiement reconstruit l'image avec le code à jour.
 
-Pour un essai local sans proxy, créer d'abord le réseau attendu : `docker network create caddy`.
+### Caddy
+
+Le HTTPS est assuré par Cloudflare et Caddy ; entre Caddy et l'application, le trafic reste en
+HTTP sur le réseau Docker privé (Gunicorn ne parle pas TLS).
+
+Dans la stack de Caddy, après le premier déploiement d'`enveloppes` (qui crée le réseau) :
+
+```yaml
+services:
+  caddy:
+    networks:
+      - enveloppes_net   # en plus des réseaux déjà listés
+
+networks:
+  enveloppes_net:
+    external: true
+```
+
+Dans le Caddyfile, avec le nom de domaine public servi par le tunnel :
+
+```caddyfile
+enveloppes.example.com {
+	reverse_proxy enveloppes:8000
+}
+```
+
+L'en-tête `CF-Connecting-IP` ajouté par Cloudflare traverse Caddy tel quel : la limitation
+des essais de connexion voit l'adresse réelle du visiteur.
 
 ## Icônes
 
