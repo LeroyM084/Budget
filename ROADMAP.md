@@ -151,10 +151,14 @@ Formulaire de mouvement :
 - Le signe est appliqué côté serveur selon `sens`. L'utilisateur ne tape jamais de signe.
 
 Règles métier :
-- **Un retrait ne peut pas rendre le solde négatif.** Si c'est le cas, refuser avec le message « Solde insuffisant (solde actuel : X €) ».
+- **Le solde d'une enveloppe physique ne peut jamais devenir négatif.** Un retrait qui le rendrait négatif est refusé avec le message « Solde insuffisant (solde actuel : X €) » ; la suppression d'un ajout qui le rendrait négatif est refusée aussi. Une enveloppe démat peut être à découvert (solde négatif). *(Décidé après la phase 2.)*
 - Nom d'enveloppe unique (insensible à la casse) : message d'erreur si doublon.
 - Enveloppe ou mouvement inexistant : 404.
 - En cas d'erreur de validation, réafficher le formulaire avec les valeurs saisies et le message d'erreur sous le champ concerné.
+
+Sécurité *(décidé après la phase 2)* :
+- Protection CSRF : refuser (403) les POST dont l'en-tête `Sec-Fetch-Site` indique un autre site.
+- Interdire l'affichage de l'app dans une iframe (`Content-Security-Policy: frame-ancestors 'none'`).
 
 Templates :
 - `base.html` : `<html lang="fr">`, meta viewport, lien CSS, en-tête avec le nom de l'app et lien vers l'accueil.

@@ -131,6 +131,15 @@ def test_retrait_refuse_si_solde_insuffisant(app, client):
     assert solde(app, id) == 1000
 
 
+def test_retrait_a_decouvert_autorise_en_demat(app, client):
+    id = creer_enveloppe(app, "Banque", "demat")
+    poster_mouvement(client, id, "ajout", "10")
+
+    assert poster_mouvement(client, id, "retrait", "25").status_code == 303
+    assert solde(app, id) == -1500
+    assert f"−15,00{INSECABLE}€" in client.get(f"/enveloppes/{id}").get_data(as_text=True)
+
+
 @pytest.mark.parametrize(
     ("champ", "valeur", "message"),
     [
@@ -177,6 +186,32 @@ def test_suppression_mouvement(app, client):
     assert reponse.status_code == 303
     assert reponse.headers["Location"] == f"/enveloppes/{id}"
     assert solde(app, id) == 1000
+
+
+def test_suppression_ajout_refusee_si_physique_devient_negative(app, client):
+    id = creer_enveloppe(app)
+    poster_mouvement(client, id, "ajout", "50")
+    poster_mouvement(client, id, "retrait", "40")
+    with app.app_context():
+        ajout = db.lister_mouvements(id)[1]["id"]
+
+    reponse = client.post(f"/mouvements/{ajout}/supprimer")
+
+    assert reponse.status_code == 422
+    message = f"Suppression impossible : le solde passerait à −40,00{INSECABLE}€."
+    assert message in reponse.get_data(as_text=True)
+    assert solde(app, id) == 1000
+
+
+def test_suppression_ajout_autorisee_a_decouvert_en_demat(app, client):
+    id = creer_enveloppe(app, "Banque", "demat")
+    poster_mouvement(client, id, "ajout", "50")
+    poster_mouvement(client, id, "retrait", "40")
+    with app.app_context():
+        ajout = db.lister_mouvements(id)[1]["id"]
+
+    assert client.post(f"/mouvements/{ajout}/supprimer").status_code == 303
+    assert solde(app, id) == -4000
 
 
 def test_suppression_enveloppe_en_cascade(app, client):
@@ -230,3 +265,30 @@ def test_renommer_doublon(app, client):
 )
 def test_404(client, methode, url):
     assert getattr(client, methode)(url).status_code == 404
+
+
+@pytest.mark.parametrize("provenance", ["cross-site", "same-site"])
+def test_post_depuis_un_autre_site_refuse(app, client, provenance):
+    reponse = client.post(
+        "/enveloppes",
+        data={"nom": "Courses", "type": "physique"},
+        headers={"Sec-Fetch-Site": provenance},
+    )
+
+    assert reponse.status_code == 403
+    with app.app_context():
+        assert db.lister_enveloppes() == []
+
+
+def test_post_depuis_le_meme_site_accepte(client):
+    reponse = client.post(
+        "/enveloppes",
+        data={"nom": "Courses", "type": "physique"},
+        headers={"Sec-Fetch-Site": "same-origin"},
+    )
+
+    assert reponse.status_code == 303
+
+
+def test_affichage_en_iframe_interdit(client):
+    assert client.get("/").headers["Content-Security-Policy"] == "frame-ancestors 'none'"

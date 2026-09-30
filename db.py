@@ -113,6 +113,13 @@ def lister_mouvements(enveloppe_id):
     ).fetchall()
 
 
+def get_mouvement(id):
+    return get_db().execute(
+        "SELECT id, enveloppe_id, montant, motif, date FROM mouvement WHERE id = ?",
+        (id,),
+    ).fetchone()
+
+
 def ajouter_mouvement(enveloppe_id, montant_centimes, motif, date):
     db = get_db()
     curseur = db.execute(

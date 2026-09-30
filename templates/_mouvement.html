@@ -5,4 +5,5 @@
   <form method="post" action="{{ url_for('supprimer_mouvement', id=mouvement.id) }}">
     <button>Supprimer</button>
   </form>
+  {% if erreur %}<p class="erreur">{{ erreur }}</p>{% endif %}
 </li>

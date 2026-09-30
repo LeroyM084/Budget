@@ -15,6 +15,22 @@ def create_app():
     app.add_template_filter(formater_euros, "euros")
     app.jinja_env.globals["TYPES"] = TYPES
 
+    @app.before_request
+    def refuser_ecritures_intersites():
+        """Protection CSRF : refuse les POST envoyés depuis la page d'un autre site.
+
+        Les navigateurs récents indiquent la provenance dans Sec-Fetch-Site ;
+        sans cet en-tête (curl, tests), la requête est acceptée.
+        """
+        provenance = request.headers.get("Sec-Fetch-Site")
+        if request.method == "POST" and provenance not in (None, "same-origin", "none"):
+            abort(403)
+
+    @app.after_request
+    def interdire_iframes(reponse):
+        reponse.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+        return reponse
+
     @app.get("/")
     def accueil():
         return page_accueil()
@@ -57,7 +73,8 @@ def create_app():
         except ValueError as erreur:
             erreurs["montant"] = str(erreur)
         else:
-            if valeurs["sens"] == "retrait" and centimes > enveloppe["solde"]:
+            retrait = valeurs["sens"] == "retrait"
+            if retrait and decouvert_interdit(enveloppe, enveloppe["solde"] - centimes):
                 solde = formater_euros(enveloppe["solde"])
                 erreurs["montant"] = f"Solde insuffisant (solde actuel : {solde})"
 
@@ -96,9 +113,16 @@ def create_app():
 
     @app.post("/mouvements/<int:id>/supprimer")
     def supprimer_mouvement(id):
-        enveloppe_id = db.supprimer_mouvement(id)
-        if enveloppe_id is None:
+        mouvement = db.get_mouvement(id)
+        if mouvement is None:
             abort(404)
+        enveloppe = db.get_enveloppe(mouvement["enveloppe_id"])
+        nouveau_solde = enveloppe["solde"] - mouvement["montant"]
+        if decouvert_interdit(enveloppe, nouveau_solde):
+            erreur = f"Suppression impossible : le solde passerait à {formater_euros(nouveau_solde)}."
+            return page_enveloppe(enveloppe, erreurs={f"mouvement-{id}": erreur}), 422
+
+        enveloppe_id = db.supprimer_mouvement(id)
         return redirect(url_for("voir_enveloppe", id=enveloppe_id), code=303)
 
     return app
@@ -109,6 +133,11 @@ def trouver_enveloppe(id):
     if enveloppe is None:
         abort(404)
     return enveloppe
+
+
+def decouvert_interdit(enveloppe, nouveau_solde):
+    """Seules les enveloppes démat peuvent avoir un solde négatif."""
+    return enveloppe["type"] == "physique" and nouveau_solde < 0
 
 
 def valider_nom(nom, sauf_id=None):

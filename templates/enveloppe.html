@@ -16,6 +16,7 @@
   <h2>Historique</h2>
   <ul class="historique" id="historique">
     {% for mouvement in mouvements %}
+      {% set erreur = erreurs["mouvement-" ~ mouvement.id] %}
       {% include "_mouvement.html" %}
     {% endfor %}
   </ul>
