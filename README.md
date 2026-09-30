@@ -8,7 +8,7 @@ Python + Flask + SQLite, pensée d'abord pour le mobile.
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 flask --app app run --debug
 ```
 
@@ -23,6 +23,19 @@ La base SQLite est créée automatiquement au démarrage dans `instance/envelopp
 ```sh
 pytest
 ```
+
+## Docker
+
+L'image lance Gunicorn (2 workers) sur le port 8000, sans le publier sur l'hôte :
+Caddy joint le conteneur `enveloppes` par son propre réseau Docker, dont le nom se règle
+avec la variable `CADDY_NETWORK` (`caddy` par défaut). Les données sont dans le volume
+`enveloppes_donnees`, monté sur `/data`.
+
+```sh
+docker compose up -d --build
+```
+
+Pour un essai local sans Caddy, créer d'abord le réseau attendu : `docker network create caddy`.
 
 ## Icônes
 

@@ -1,0 +1,24 @@
+name: enveloppes
+
+services:
+  enveloppes:
+    build: .
+    image: enveloppes
+    restart: unless-stopped
+    # Aucun port publié sur l'hôte : Caddy joint l'application par son réseau.
+    volumes:
+      - donnees:/data
+    networks:
+      - enveloppes_net
+      - caddy
+
+volumes:
+  donnees:
+
+networks:
+  enveloppes_net:
+    name: enveloppes_net
+  caddy:
+    # Réseau Docker de Caddy, créé ailleurs ; nom réglable avec CADDY_NETWORK.
+    name: ${CADDY_NETWORK:-caddy}
+    external: true

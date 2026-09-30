@@ -571,3 +571,18 @@ def test_couleurs_pwa_identiques_au_fond_du_css(client):
     assert manifest["background_color"] == manifest["theme_color"] == fond_clair
     assert f'name="theme-color" content="{fond_clair}" media="(prefers-color-scheme: light)"' in page
     assert f'name="theme-color" content="{fond_sombre}" media="(prefers-color-scheme: dark)"' in page
+
+
+# --- Conteneur (phase 7) ---
+
+
+def test_sante(client):
+    reponse = client.get("/sante")
+
+    assert reponse.status_code == 200
+    assert reponse.get_data(as_text=True) == "OK"
+
+
+def test_base_en_mode_wal(app):
+    with app.app_context():
+        assert db.get_db().execute("PRAGMA journal_mode").fetchone()[0] == "wal"

@@ -41,6 +41,11 @@ def create_app():
     def accueil():
         return page_accueil()
 
+    @app.get("/sante")
+    def sante():
+        db.get_db().execute("SELECT 1 FROM enveloppe LIMIT 1")
+        return "OK"
+
     @app.post("/enveloppes")
     def creer_enveloppe():
         valeurs = {

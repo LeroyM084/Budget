@@ -21,8 +21,11 @@ def fermer_db(exception=None):
 
 
 def init_db():
+    db = get_db()
     with current_app.open_resource("schema.sql") as fichier:
-        get_db().executescript(fichier.read().decode("utf-8"))
+        db.executescript(fichier.read().decode("utf-8"))
+    # WAL : un worker Gunicorn peut lire pendant qu'un autre écrit.
+    db.execute("PRAGMA journal_mode = WAL")
 
 
 def commande_init_db():
@@ -39,9 +42,10 @@ def init_app(app):
     app.teardown_appcontext(fermer_db)
     app.cli.command("init-db")(commande_init_db)
 
-    if not chemin.exists():
-        with app.app_context():
-            init_db()
+    # Sans effet sur une base existante ; exécuté à chaque démarrage pour que
+    # deux workers lancés en même temps ne se gênent pas à la création.
+    with app.app_context():
+        init_db()
 
 
 def lister_enveloppes():
