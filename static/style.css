@@ -1,0 +1,89 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  line-height: 1.4;
+}
+
+header,
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+input,
+button {
+  font: inherit;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+.carte a,
+.mouvement {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0;
+}
+
+.champ {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+
+.erreur {
+  margin: 0;
+  color: #b3261e;
+}
+
+/* Boutons radio présentés comme un sélecteur segmenté */
+.segmente {
+  display: flex;
+}
+
+.segmente input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmente label {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid;
+  text-align: center;
+  cursor: pointer;
+}
+
+.segmente label:first-of-type {
+  border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.segmente label:last-of-type {
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.segmente input:checked + label {
+  background: #222;
+  color: #fff;
+}
+
+.segmente input:focus-visible + label {
+  outline: 2px solid;
+  outline-offset: 2px;
+}

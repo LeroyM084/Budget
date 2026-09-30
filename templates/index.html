@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block contenu %}
+<section class="totaux">
+  <h1>Total : {{ totaux.global|euros }}</h1>
+  <p>
+    {% for type, libelle in TYPES.items() %}
+      {{ libelle }} : {{ totaux[type]|euros }}{% if not loop.last %} · {% endif %}
+    {% endfor %}
+  </p>
+</section>
+
+{% for type, libelle in TYPES.items() %}
+<section>
+  <h2>{{ libelle }}</h2>
+  <ul class="cartes" id="enveloppes-{{ type }}">
+    {% for enveloppe in enveloppes if enveloppe.type == type %}
+      {% include "_carte_enveloppe.html" %}
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+
+<section>
+  <h2>Nouvelle enveloppe</h2>
+  <form method="post" action="{{ url_for('creer_enveloppe') }}">
+    <div class="champ">
+      <label for="nom">Nom</label>
+      <input id="nom" name="nom" value="{{ valeurs.nom }}" required>
+      {% if erreurs.nom %}<p class="erreur">{{ erreurs.nom }}</p>{% endif %}
+    </div>
+    <fieldset class="champ">
+      <legend>Type</legend>
+      <div class="segmente">
+        {% for type, libelle in TYPES.items() %}
+        <input type="radio" id="type-{{ type }}" name="type" value="{{ type }}" required
+               {%- if valeurs.type == type %} checked{% endif %}>
+        <label for="type-{{ type }}">{{ libelle }}</label>
+        {% endfor %}
+      </div>
+      {% if erreurs.type %}<p class="erreur">{{ erreurs.type }}</p>{% endif %}
+    </fieldset>
+    <button>Créer l'enveloppe</button>
+  </form>
+</section>
+{% endblock %}

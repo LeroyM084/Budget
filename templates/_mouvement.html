@@ -1,0 +1,8 @@
+<li class="mouvement" id="mouvement-{{ mouvement.id }}">
+  <span>{{ mouvement.motif }}</span>
+  <time datetime="{{ mouvement.date }}">{{ mouvement.date }}</time>
+  <span class="montant">{% if mouvement.montant > 0 %}+{% endif %}{{ mouvement.montant|euros }}</span>
+  <form method="post" action="{{ url_for('supprimer_mouvement', id=mouvement.id) }}">
+    <button>Supprimer</button>
+  </form>
+</li>

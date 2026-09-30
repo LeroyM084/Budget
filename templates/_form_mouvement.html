@@ -1,0 +1,34 @@
+<form method="post" action="{{ url_for('ajouter_mouvement', id=enveloppe.id) }}">
+  <fieldset class="champ">
+    <legend>Sens</legend>
+    <div class="segmente">
+      <input type="radio" id="sens-ajout" name="sens" value="ajout" required
+             {%- if valeurs.sens == "ajout" %} checked{% endif %}>
+      <label for="sens-ajout">+ Ajouter</label>
+      <input type="radio" id="sens-retrait" name="sens" value="retrait" required
+             {%- if valeurs.sens == "retrait" %} checked{% endif %}>
+      <label for="sens-retrait">− Retirer</label>
+    </div>
+    {% if erreurs.sens %}<p class="erreur">{{ erreurs.sens }}</p>{% endif %}
+  </fieldset>
+
+  <div class="champ">
+    <label for="montant">Montant (€)</label>
+    <input id="montant" name="montant" value="{{ valeurs.montant }}" required>
+    {% if erreurs.montant %}<p class="erreur">{{ erreurs.montant }}</p>{% endif %}
+  </div>
+
+  <div class="champ">
+    <label for="motif">Motif</label>
+    <input id="motif" name="motif" maxlength="100" value="{{ valeurs.motif }}" required>
+    {% if erreurs.motif %}<p class="erreur">{{ erreurs.motif }}</p>{% endif %}
+  </div>
+
+  <div class="champ">
+    <label for="date">Date</label>
+    <input type="date" id="date" name="date" value="{{ valeurs.date }}" required>
+    {% if erreurs.date %}<p class="erreur">{{ erreurs.date }}</p>{% endif %}
+  </div>
+
+  <button>Enregistrer</button>
+</form>

@@ -1,0 +1,6 @@
+<li class="carte" id="enveloppe-{{ enveloppe.id }}">
+  <a href="{{ url_for('voir_enveloppe', id=enveloppe.id) }}">
+    <span>{{ enveloppe.nom }}</span>
+    <span class="montant">{{ enveloppe.solde|euros }}</span>
+  </a>
+</li>

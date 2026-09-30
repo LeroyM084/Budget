@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block titre %}{{ enveloppe.nom }} · Enveloppes{% endblock %}
+
+{% block contenu %}
+<h1>{{ enveloppe.nom }}</h1>
+<p>{{ TYPES[enveloppe.type] }}</p>
+{% include "_solde.html" %}
+
+<section>
+  <h2>Nouveau mouvement</h2>
+  {% include "_form_mouvement.html" %}
+</section>
+
+<section>
+  <h2>Historique</h2>
+  <ul class="historique" id="historique">
+    {% for mouvement in mouvements %}
+      {% include "_mouvement.html" %}
+    {% endfor %}
+  </ul>
+</section>
+
+<details{% if erreurs.nom %} open{% endif %}>
+  <summary>Gérer l'enveloppe</summary>
+  <form method="post" action="{{ url_for('renommer_enveloppe', id=enveloppe.id) }}">
+    <div class="champ">
+      <label for="nom">Nouveau nom</label>
+      <input id="nom" name="nom" value="{{ valeurs.nom }}" required>
+      {% if erreurs.nom %}<p class="erreur">{{ erreurs.nom }}</p>{% endif %}
+    </div>
+    <button>Renommer</button>
+  </form>
+  <form method="post" action="{{ url_for('supprimer_enveloppe', id=enveloppe.id) }}">
+    <button>Supprimer l'enveloppe et ses mouvements</button>
+  </form>
+</details>
+{% endblock %}
