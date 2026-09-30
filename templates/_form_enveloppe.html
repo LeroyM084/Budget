@@ -1,9 +1,10 @@
 {% set url = url_for('creer_enveloppe') -%}
-<form id="form-enveloppe" method="post" action="{{ url }}"
-      hx-post="{{ url }}" hx-target="this" hx-swap="outerHTML">
+<form id="form-enveloppe" class="formulaire" method="post" action="{{ url }}"
+      hx-post="{{ url }}" hx-swap="none"
+      {%- if oob %} hx-swap-oob="true"{% endif %}>
   <div class="champ">
     <label for="nom">Nom</label>
-    <input id="nom" name="nom" value="{{ valeurs.nom }}" required>
+    <input id="nom" name="nom" value="{{ valeurs.nom }}" autocomplete="off" required>
     {% if erreurs.nom %}<p class="erreur">{{ erreurs.nom }}</p>{% endif %}
   </div>
   <fieldset class="champ">
@@ -17,5 +18,5 @@
     </div>
     {% if erreurs.type %}<p class="erreur">{{ erreurs.type }}</p>{% endif %}
   </fieldset>
-  <button>Créer l'enveloppe</button>
+  <button class="bouton principal">Créer l'enveloppe</button>
 </form>

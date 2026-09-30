@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="light dark">
   {# Pas de cache d'historique (soldes toujours frais, rien dans le navigateur) ;
      les réponses 422 (erreurs de validation) sont affichées. #}
   <meta name="htmx-config" content='{
@@ -17,10 +18,37 @@
   <title>{% block titre %}Enveloppes{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="{{ url_for('static', filename='htmx.min.js') }}" defer></script>
+  <script>
+    // Modales : ouverture (sens présélectionné, focus sur le premier champ),
+    // fermeture au clic sur le fond et après un enregistrement réussi.
+    // Sans JavaScript, la classe « js » manque et les formulaires restent dans la page.
+    document.documentElement.classList.add("js");
+
+    document.addEventListener("click", (evenement) => {
+      const lien = evenement.target.closest("[data-modale]");
+      if (lien) {
+        evenement.preventDefault();
+        const modale = document.getElementById(lien.dataset.modale);
+        if (lien.dataset.sens) {
+          modale.querySelector(`[name="sens"][value="${lien.dataset.sens}"]`).checked = true;
+        }
+        modale.showModal();
+        modale.querySelector("input:not([type=radio])").focus();
+      } else if (evenement.target.localName === "dialog") {
+        evenement.target.close();
+      }
+    });
+
+    document.addEventListener("htmx:afterRequest", (evenement) => {
+      if (evenement.detail.successful) {
+        evenement.target.closest("dialog")?.close();
+      }
+    });
+  </script>
 </head>
 <body hx-boost="true" hx-disabled-elt="find button">
-  <header>
-    <a href="{{ url_for('accueil') }}">Enveloppes</a>
+  <header class="entete">
+    <a href="{{ url_for('accueil') }}" class="marque">{% block marque %}Enveloppes{% endblock %}</a>
   </header>
   <main>
     {% block contenu %}{% endblock %}

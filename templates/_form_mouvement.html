@@ -1,29 +1,35 @@
 {% set url = url_for('ajouter_mouvement', id=enveloppe.id) -%}
-<form id="form-mouvement" method="post" action="{{ url }}"
-      hx-post="{{ url }}" hx-target="#historique" hx-swap="afterbegin"
+<form id="form-mouvement" class="formulaire" method="post" action="{{ url }}"
+      hx-post="{{ url }}" hx-swap="none"
       {%- if oob %} hx-swap-oob="true"{% endif %}>
   <fieldset class="champ">
-    <legend>Sens</legend>
+    <legend class="visuellement-cache">Sens</legend>
     <div class="segmente">
       <input type="radio" id="sens-ajout" name="sens" value="ajout" required
              {%- if valeurs.sens == "ajout" %} checked{% endif %}>
-      <label for="sens-ajout">+ Ajouter</label>
+      <label for="sens-ajout" class="ajout">+ Ajouter</label>
       <input type="radio" id="sens-retrait" name="sens" value="retrait" required
              {%- if valeurs.sens == "retrait" %} checked{% endif %}>
-      <label for="sens-retrait">− Retirer</label>
+      <label for="sens-retrait" class="retrait">− Retirer</label>
     </div>
     {% if erreurs.sens %}<p class="erreur">{{ erreurs.sens }}</p>{% endif %}
   </fieldset>
 
   <div class="champ">
     <label for="montant">Montant (€)</label>
-    <input id="montant" name="montant" value="{{ valeurs.montant }}" required>
+    <input id="montant" name="montant" value="{{ valeurs.montant }}"
+           inputmode="decimal" autocomplete="off" required>
     {% if erreurs.montant %}<p class="erreur">{{ erreurs.montant }}</p>{% endif %}
   </div>
 
   <div class="champ">
     <label for="motif">Motif</label>
-    <input id="motif" name="motif" maxlength="100" value="{{ valeurs.motif }}" required>
+    <input id="motif" name="motif" maxlength="100" value="{{ valeurs.motif }}" list="motifs" required>
+    <datalist id="motifs">
+      {% for motif in motifs %}
+        <option value="{{ motif }}">
+      {% endfor %}
+    </datalist>
     {% if erreurs.motif %}<p class="erreur">{{ erreurs.motif }}</p>{% endif %}
   </div>
 
@@ -33,5 +39,5 @@
     {% if erreurs.date %}<p class="erreur">{{ erreurs.date }}</p>{% endif %}
   </div>
 
-  <button>Enregistrer</button>
+  <button class="bouton principal">Enregistrer</button>
 </form>

@@ -1,17 +1,20 @@
 {% extends "base.html" %}
 
 {% block contenu %}
-{% include "_totaux.html" %}
+<h1 class="visuellement-cache">Mes enveloppes</h1>
+{% include "_tableau.html" %}
 
-{% for type, libelle in TYPES.items() %}
-<section>
-  <h2>{{ libelle }}</h2>
-  {% include "_liste_enveloppes.html" %}
-</section>
-{% endfor %}
+<dialog id="modale-enveloppe" aria-labelledby="titre-modale-enveloppe"{% if erreurs %} open{% endif %}>
+  <div class="feuille">
+    <div class="feuille-entete">
+      <h2 id="titre-modale-enveloppe">Nouvelle enveloppe</h2>
+      <form method="dialog"><button class="fermer" aria-label="Fermer">×</button></form>
+    </div>
+    {% include "_form_enveloppe.html" %}
+  </div>
+</dialog>
 
-<section>
-  <h2>Nouvelle enveloppe</h2>
-  {% include "_form_enveloppe.html" %}
-</section>
+<div class="barre-actions">
+  <a href="#modale-enveloppe" class="bouton principal" data-modale="modale-enveloppe">+ Nouvelle enveloppe</a>
+</div>
 {% endblock %}

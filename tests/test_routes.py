@@ -1,9 +1,9 @@
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
 import db
-from app import create_app
+from app import create_app, libelle_jour
 
 INSECABLE = " "
 HTMX = {"HX-Request": "true"}
@@ -315,11 +315,12 @@ def test_htmx_creation_renvoie_des_fragments(app, client):
     assert "Location" not in reponse.headers
     page = reponse.get_data(as_text=True)
     assert "<html" not in page
-    assert page.startswith('<form id="form-enveloppe"')
-    assert 'value=""' in page
-    assert '<ul class="cartes" id="enveloppes-physique" hx-swap-oob="true">' in page
-    assert "Courses" in page
-    assert '<section class="totaux" id="totaux" hx-swap-oob="true">' in page
+    formulaire, tableau = page.split('<div class="tableau" id="tableau" hx-swap-oob="true">')
+    assert formulaire.startswith('<form id="form-enveloppe"')
+    assert 'hx-swap-oob="true"' in formulaire
+    assert 'id="nom" name="nom" value=""' in formulaire
+    assert "Courses" in tableau
+    assert "carte-total" in tableau
 
 
 def test_htmx_creation_invalide_renvoie_le_formulaire(client):
@@ -328,17 +329,19 @@ def test_htmx_creation_invalide_renvoie_le_formulaire(client):
     assert reponse.status_code == 422
     page = reponse.get_data(as_text=True)
     assert "<html" not in page
-    assert '<form id="form-enveloppe"' in page
+    assert page.startswith('<form id="form-enveloppe"')
     assert "Le nom est obligatoire." in page
-    assert "hx-swap-oob" not in page
+    assert 'id="tableau"' not in page
 
 
-def test_htmx_ajout_renvoie_ligne_solde_et_formulaire_vide(app, client):
+def test_htmx_ajout_renvoie_historique_solde_et_formulaire_vide(app, client):
     id = creer_enveloppe(app)
+    poster_mouvement(client, id, "ajout", "5", motif="Retrait DAB", date="2025-12-31")
+    hier = (date.today() - timedelta(days=1)).isoformat()
 
     reponse = client.post(
         f"/enveloppes/{id}/mouvements",
-        data={"sens": "ajout", "montant": "12,50", "motif": "Salaire", "date": "2026-09-01"},
+        data={"sens": "ajout", "montant": "12,50", "motif": "Salaire", "date": hier},
         headers=HTMX,
     )
 
@@ -346,15 +349,18 @@ def test_htmx_ajout_renvoie_ligne_solde_et_formulaire_vide(app, client):
     assert "Location" not in reponse.headers
     page = reponse.get_data(as_text=True)
     assert "<html" not in page
-    assert page.startswith('<li class="mouvement"')
-    assert "Salaire" in page
-    assert f'<p class="solde" id="solde" hx-swap-oob="true">Solde : 12,50{INSECABLE}€</p>' in page
+    assert page.startswith('<div class="historique" id="historique" hx-swap-oob="true">')
+    assert page.count('<li class="mouvement nouveau">') == 1
+    assert page.index('<li class="mouvement nouveau">') < page.index("Salaire") < page.index("Retrait DAB")
+    assert '<p class="solde modifie" id="solde" hx-swap-oob="true">' in page
+    assert f"17,50{INSECABLE}€" in page
     formulaire = page[page.index('<form id="form-mouvement"'):]
     assert 'hx-swap-oob="true"' in formulaire
     assert 'value="ajout" required checked' in formulaire
     assert 'id="montant" name="montant" value=""' in formulaire
     assert 'id="motif" name="motif" maxlength="100" value=""' in formulaire
     assert f'value="{date.today().isoformat()}"' in formulaire
+    assert '<option value="Salaire">' in formulaire
 
 
 def test_htmx_mouvement_invalide_renvoie_le_formulaire(app, client):
@@ -372,26 +378,29 @@ def test_htmx_mouvement_invalide_renvoie_le_formulaire(app, client):
     assert 'hx-swap-oob="true"' in page
     assert "Solde insuffisant" in page
     assert 'value="Pain"' in page
-    assert '<li class="mouvement"' not in page
+    assert 'id="historique"' not in page
 
 
-def test_htmx_suppression_mouvement_renvoie_le_solde(app, client):
+def test_htmx_suppression_mouvement_renvoie_historique_et_solde(app, client):
     id = creer_enveloppe(app)
-    poster_mouvement(client, id, "ajout", "10")
-    poster_mouvement(client, id, "retrait", "3")
+    poster_mouvement(client, id, "ajout", "10", motif="Retrait DAB")
+    poster_mouvement(client, id, "retrait", "3", motif="Boulangerie")
     with app.app_context():
         retrait = db.lister_mouvements(id)[0]["id"]
 
     reponse = client.post(f"/mouvements/{retrait}/supprimer", headers=HTMX)
 
     assert reponse.status_code == 200
-    assert reponse.get_data(as_text=True) == (
-        f'<p class="solde" id="solde" hx-swap-oob="true">Solde : 10,00{INSECABLE}€</p>'
-    )
+    page = reponse.get_data(as_text=True)
+    assert page.startswith('<div class="historique" id="historique" hx-swap-oob="true">')
+    assert "Retrait DAB" in page
+    assert "Boulangerie" not in page
+    assert '<p class="solde modifie" id="solde" hx-swap-oob="true">' in page
+    assert f"10,00{INSECABLE}€" in page
     assert solde(app, id) == 1000
 
 
-def test_htmx_suppression_mouvement_refusee_renvoie_la_ligne(app, client):
+def test_htmx_suppression_mouvement_refusee_renvoie_l_historique(app, client):
     id = creer_enveloppe(app)
     poster_mouvement(client, id, "ajout", "50")
     poster_mouvement(client, id, "retrait", "40")
@@ -402,8 +411,9 @@ def test_htmx_suppression_mouvement_refusee_renvoie_la_ligne(app, client):
 
     assert reponse.status_code == 422
     page = reponse.get_data(as_text=True)
-    assert page.startswith(f'<li class="mouvement" id="mouvement-{ajout}">')
-    assert "Suppression impossible" in page
+    assert page.startswith('<div class="historique" id="historique" hx-swap-oob="true">')
+    assert page.count("Suppression impossible") == 1
+    assert 'id="solde"' not in page
 
 
 def test_htmx_suppression_enveloppe_navigue_vers_l_accueil(app, client):
@@ -429,3 +439,88 @@ def test_formulaire_booste_garde_la_redirection(app, client):
 
     assert reponse.status_code == 303
     assert reponse.headers["Location"] == f"/enveloppes/{id}"
+
+
+# --- Interface (phase 4) ---
+
+
+def test_accueil_vide_propose_de_creer_une_enveloppe(client):
+    page = client.get("/").get_data(as_text=True)
+
+    assert "Aucune enveloppe pour l'instant." in page
+    assert 'data-modale="modale-enveloppe">Créer une enveloppe</a>' in page
+    assert "carte-total" not in page
+
+
+def test_accueil_n_affiche_que_les_sections_non_vides(app, client):
+    creer_enveloppe(app, "Courses", "physique")
+
+    page = client.get("/").get_data(as_text=True)
+
+    assert '<h2 class="titre-section">Physique</h2>' in page
+    assert '<h2 class="titre-section">Dématérialisé</h2>' not in page
+    assert "Aucune enveloppe" not in page
+
+
+def test_historique_regroupe_par_jour(app, client):
+    id = creer_enveloppe(app)
+    aujourdhui = date.today()
+    hier = aujourdhui - timedelta(days=1)
+    poster_mouvement(client, id, "ajout", "10", motif="Ancien", date="2025-12-31")
+    poster_mouvement(client, id, "ajout", "10", motif="Veille", date=hier.isoformat())
+    poster_mouvement(client, id, "ajout", "10", motif="Du jour", date=aujourdhui.isoformat())
+
+    page = client.get(f"/enveloppes/{id}").get_data(as_text=True)
+
+    ordre_attendu = [
+        "<h3>Aujourd&#39;hui</h3>",
+        '<span class="motif">Du jour</span>',
+        "<h3>Hier</h3>",
+        '<span class="motif">Veille</span>',
+        "<h3>Mercredi 31 décembre 2025</h3>",
+        '<span class="motif">Ancien</span>',
+    ]
+    positions = [page.index(repere) for repere in ordre_attendu]
+    assert positions == sorted(positions)
+
+
+def test_historique_vide(app, client):
+    id = creer_enveloppe(app)
+
+    assert "Aucun mouvement pour l'instant" in client.get(f"/enveloppes/{id}").get_data(as_text=True)
+
+
+@pytest.mark.parametrize(
+    ("jour", "libelle"),
+    [
+        ("2026-09-30", "Aujourd'hui"),
+        ("2026-09-29", "Hier"),
+        ("2026-09-28", "Lundi 28 septembre"),
+        ("2026-10-01", "Jeudi 1er octobre"),
+        ("2025-12-31", "Mercredi 31 décembre 2025"),
+    ],
+)
+def test_libelle_jour(jour, libelle):
+    assert libelle_jour(jour, aujourdhui=date(2026, 9, 30)) == libelle
+
+
+def test_page_enveloppe_propose_motifs_et_sens(app, client):
+    id = creer_enveloppe(app)
+    poster_mouvement(client, id, "ajout", "10", motif="Salaire")
+
+    page = client.get(f"/enveloppes/{id}").get_data(as_text=True)
+
+    assert '<option value="Salaire">' in page
+    assert 'data-modale="modale-mouvement" data-sens="ajout"' in page
+    assert 'data-modale="modale-mouvement" data-sens="retrait"' in page
+    assert 'inputmode="decimal" autocomplete="off"' in page
+
+
+def test_modale_ouverte_quand_le_formulaire_sans_htmx_contient_une_erreur(app, client):
+    id = creer_enveloppe(app)
+
+    page_normale = client.get(f"/enveloppes/{id}").get_data(as_text=True)
+    page_erreur = poster_mouvement(client, id, "retrait", "5").get_data(as_text=True)
+
+    assert '<dialog id="modale-mouvement" aria-labelledby="titre-modale-mouvement">' in page_normale
+    assert '<dialog id="modale-mouvement" aria-labelledby="titre-modale-mouvement" open>' in page_erreur

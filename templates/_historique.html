@@ -1,0 +1,15 @@
+<div class="historique" id="historique"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% for jour, lignes in mouvements|groupby("date")|reverse %}
+    <section class="jour">
+      <h3>{{ jour|libelle_jour }}</h3>
+      <ul>
+        {% for mouvement in lignes %}
+          {% set erreur = erreurs["mouvement-" ~ mouvement.id] %}
+          {% include "_mouvement.html" %}
+        {% endfor %}
+      </ul>
+    </section>
+  {% else %}
+    <p class="vide">Aucun mouvement pour l'instant</p>
+  {% endfor %}
+</div>

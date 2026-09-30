@@ -2,42 +2,60 @@
 
 {% block titre %}{{ enveloppe.nom }} · Enveloppes{% endblock %}
 
+{% block marque %}‹ Enveloppes{% endblock %}
+
 {% block contenu %}
-<h1>{{ enveloppe.nom }}</h1>
-<p>{{ TYPES[enveloppe.type] }}</p>
+<div class="entete-enveloppe">
+  <div>
+    <h1>{{ enveloppe.nom }}</h1>
+    <p class="type">{{ TYPES[enveloppe.type] }}</p>
+  </div>
+  <details class="menu"{% if erreurs.nom %} open{% endif %}>
+    <summary aria-label="Gérer l'enveloppe">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
+        <circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>
+      </svg>
+    </summary>
+    <div class="menu-panneau">
+      {# Formulaire boosté : même URL avant et après, et la page ne remonte pas en haut. #}
+      <form class="formulaire" method="post" action="{{ url_for('renommer_enveloppe', id=enveloppe.id) }}"
+            hx-push-url="false" hx-swap="innerHTML show:none">
+        <div class="champ">
+          <label for="nom">Nom de l'enveloppe</label>
+          <input id="nom" name="nom" value="{{ valeurs.nom }}" autocomplete="off" required>
+          {% if erreurs.nom %}<p class="erreur">{{ erreurs.nom }}</p>{% endif %}
+        </div>
+        <button class="bouton">Renommer</button>
+      </form>
+      {% set url = url_for('supprimer_enveloppe', id=enveloppe.id) %}
+      <form method="post" action="{{ url }}"
+            hx-post="{{ url }}" hx-confirm="Supprimer cette enveloppe et tous ses mouvements ?">
+        <button class="bouton danger">Supprimer l'enveloppe</button>
+      </form>
+    </div>
+  </details>
+</div>
+
 {% include "_solde.html" %}
 
-<section>
-  <h2>Nouveau mouvement</h2>
-  {% include "_form_mouvement.html" %}
-</section>
-
-<section>
-  <h2>Historique</h2>
-  <ul class="historique" id="historique">
-    {% for mouvement in mouvements %}
-      {% set erreur = erreurs["mouvement-" ~ mouvement.id] %}
-      {% include "_mouvement.html" %}
-    {% endfor %}
-  </ul>
-</section>
-
-<details{% if erreurs.nom %} open{% endif %}>
-  <summary>Gérer l'enveloppe</summary>
-  {# Formulaire boosté : même URL avant et après, et la page ne remonte pas en haut. #}
-  <form method="post" action="{{ url_for('renommer_enveloppe', id=enveloppe.id) }}"
-        hx-push-url="false" hx-swap="innerHTML show:none">
-    <div class="champ">
-      <label for="nom">Nouveau nom</label>
-      <input id="nom" name="nom" value="{{ valeurs.nom }}" required>
-      {% if erreurs.nom %}<p class="erreur">{{ erreurs.nom }}</p>{% endif %}
+<dialog id="modale-mouvement" aria-labelledby="titre-modale-mouvement"
+        {%- if erreurs.sens or erreurs.montant or erreurs.motif or erreurs.date %} open{% endif %}>
+  <div class="feuille">
+    <div class="feuille-entete">
+      <h2 id="titre-modale-mouvement">Nouveau mouvement</h2>
+      <form method="dialog"><button class="fermer" aria-label="Fermer">×</button></form>
     </div>
-    <button>Renommer</button>
-  </form>
-  {% set url = url_for('supprimer_enveloppe', id=enveloppe.id) %}
-  <form method="post" action="{{ url }}"
-        hx-post="{{ url }}" hx-confirm="Supprimer cette enveloppe et tous ses mouvements ?">
-    <button>Supprimer l'enveloppe et ses mouvements</button>
-  </form>
-</details>
+    {% include "_form_mouvement.html" %}
+  </div>
+</dialog>
+
+<section>
+  <h2 class="titre-section">Historique</h2>
+  {% include "_historique.html" %}
+</section>
+
+<div class="barre-actions">
+  <a href="#modale-mouvement" class="bouton ajout" data-modale="modale-mouvement" data-sens="ajout">+ Ajouter</a>
+  <a href="#modale-mouvement" class="bouton retrait" data-modale="modale-mouvement" data-sens="retrait">− Retirer</a>
+</div>
 {% endblock %}

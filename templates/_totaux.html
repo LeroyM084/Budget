@@ -1,8 +1,0 @@
-<section class="totaux" id="totaux"{% if oob %} hx-swap-oob="true"{% endif %}>
-  <h1>Total : {{ totaux.global|euros }}</h1>
-  <p>
-    {% for type, libelle in TYPES.items() %}
-      {{ libelle }} : {{ totaux[type]|euros }}{% if not loop.last %} · {% endif %}
-    {% endfor %}
-  </p>
-</section>

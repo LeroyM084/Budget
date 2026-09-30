@@ -1,59 +1,513 @@
+/* Enveloppes : feuille de style unique, conçue d'abord pour un écran de 375 px. */
+
+:root {
+  color-scheme: light dark;
+  --fond: #f3f4f6;
+  --surface: #ffffff;
+  --texte: #1b1d21;
+  --texte-doux: #5e6570;
+  --bordure: #d8dbe0;
+  --accent: #2f5bea;
+  --positif: #1a7f37;
+  --negatif: #c62828;
+  /* Fonds des boutons colorés : texte blanc lisible en clair comme en sombre */
+  --accent-fond: #2f5bea;
+  --positif-fond: #1a7f37;
+  --negatif-fond: #c62828;
+  --sur-couleur: #ffffff;
+  --rayon: 0.75rem;
+  --rayon-grand: 1.25rem;
+  --ombre: 0 1px 2px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fond: #111318;
+    --surface: #1c1f26;
+    --texte: #eceef2;
+    --texte-doux: #a2a9b4;
+    --bordure: #333944;
+    --accent: #8aa6ff;
+    --positif: #56c271;
+    --negatif: #ff7070;
+    --ombre: none;
+  }
+}
+
+/* Base */
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  line-height: 1.4;
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-header,
-main {
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: 0 1rem;
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  background: var(--fond);
+  color: var(--texte);
+  font-family: system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--accent);
 }
 
 input,
 button {
   font: inherit;
+  color: inherit;
 }
 
-ul {
-  padding: 0;
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visuellement-cache {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.positif {
+  color: var(--positif);
+}
+
+.negatif {
+  color: var(--negatif);
+}
+
+/* Mise en page : colonne centrée, 640 px au plus */
+
+.entete,
+main {
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+  padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+}
+
+.entete {
+  display: flex;
+  align-items: center;
+  min-height: 3.5rem;
+  padding-top: env(safe-area-inset-top);
+}
+
+.marque {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--texte);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.titre-section {
+  margin-bottom: 0.5rem;
+  color: var(--texte-doux);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.vide {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  padding: 2rem 1rem;
+  color: var(--texte-doux);
+  text-align: center;
+}
+
+/* Boutons (zones tactiles d'au moins 44 × 44 px) */
+
+.bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  background: var(--surface);
+  color: var(--texte);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.bouton.principal,
+.bouton.ajout,
+.bouton.retrait {
+  border-color: transparent;
+  color: var(--sur-couleur);
+}
+
+.bouton.principal {
+  background: var(--accent-fond);
+}
+
+.bouton.ajout {
+  background: var(--positif-fond);
+}
+
+.bouton.retrait {
+  background: var(--negatif-fond);
+}
+
+.bouton.danger {
+  color: var(--negatif);
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+/* Barre d'actions collée en bas de l'écran */
+
+.barre-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding: 1rem 0 calc(0.75rem + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent, var(--fond) 1rem);
+}
+
+.barre-actions .bouton {
+  flex: 1;
+  min-height: 3.25rem;
+  font-size: 1.0625rem;
+  box-shadow: var(--ombre);
+}
+
+main:has(#accueil-vide) .barre-actions {
+  display: none;
+}
+
+/* Accueil */
+
+.tableau {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.carte-total {
+  padding: 1.25rem;
+  border-radius: var(--rayon-grand);
+  background: var(--accent-fond);
+  color: var(--sur-couleur);
+  box-shadow: var(--ombre);
+}
+
+.carte-total .etiquette,
+.detail-totaux dt {
+  opacity: 0.85;
+}
+
+.total {
+  font-size: clamp(1.75rem, 9vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.detail-totaux {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin: 0.75rem 0 0;
+}
+
+.detail-totaux div {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.detail-totaux dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.cartes {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.carte {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.75rem;
+  padding: 0.625rem 1rem;
+  border-radius: var(--rayon);
+  background: var(--surface);
+  color: var(--texte);
+  text-decoration: none;
+  box-shadow: var(--ombre);
+}
+
+.carte .icone {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--fond);
+  color: var(--texte-doux);
+}
+
+.carte .nom {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.carte .montant {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Écran enveloppe */
+
+.entete-enveloppe {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.entete-enveloppe h1 {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.type,
+.solde .etiquette {
+  color: var(--texte-doux);
+  font-size: 0.875rem;
+}
+
+.solde {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.montant-solde {
+  font-size: clamp(2.25rem, 12vw, 3rem);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.menu {
+  position: relative;
+  flex: none;
+}
+
+.menu summary {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  color: var(--texte-doux);
   list-style: none;
+  cursor: pointer;
 }
 
-.carte a,
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu[open] summary {
+  background: var(--surface);
+}
+
+.menu-panneau {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: 10;
+  display: grid;
+  gap: 1rem;
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+.menu-panneau .bouton {
+  width: 100%;
+}
+
+/* Historique regroupé par jour */
+
+.historique {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.jour h3 {
+  margin-bottom: 0.375rem;
+  color: var(--texte-doux);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.jour ul {
+  border-radius: var(--rayon);
+  background: var(--surface);
+  box-shadow: var(--ombre);
+}
+
 .mouvement {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding: 0.5rem 0;
+  gap: 0 0.5rem;
+  min-height: 3.25rem;
+  padding: 0.25rem 0.25rem 0.25rem 1rem;
+}
+
+.mouvement + .mouvement {
+  border-top: 1px solid var(--bordure);
+}
+
+.mouvement .motif {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mouvement .montant {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mouvement .erreur {
+  flex-basis: 100%;
+  padding: 0 0.75rem 0.5rem 0;
+}
+
+.supprimer {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--texte-doux);
+  cursor: pointer;
+}
+
+/* Formulaires */
+
+.formulaire {
+  display: grid;
+  gap: 1rem;
 }
 
 .champ {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+  margin: 0;
   padding: 0;
   border: 0;
 }
 
+.champ > label,
+.champ > legend {
+  padding: 0;
+  color: var(--texte-doux);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.champ > legend {
+  margin-bottom: 0.375rem;
+}
+
+input:not([type="radio"]) {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--bordure);
+  border-radius: calc(var(--rayon) - 0.25rem);
+  background: var(--surface);
+  font-size: 1rem; /* 16 px au moins : pas de zoom automatique sur mobile */
+}
+
+#montant {
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
 .erreur {
-  margin: 0;
-  color: #b3261e;
+  color: var(--negatif);
+  font-size: 0.875rem;
 }
 
 /* Boutons radio présentés comme un sélecteur segmenté */
+
 .segmente {
+  position: relative;
   display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  background: var(--fond);
 }
 
 .segmente input {
@@ -63,33 +517,164 @@ ul {
 }
 
 .segmente label {
+  display: flex;
   flex: 1;
-  padding: 0.5rem;
-  border: 1px solid;
-  text-align: center;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border-radius: calc(var(--rayon) - 0.25rem);
+  color: var(--texte-doux);
+  font-weight: 600;
   cursor: pointer;
 }
 
-.segmente label:first-of-type {
-  border-radius: 0.5rem 0 0 0.5rem;
-}
-
-.segmente label:last-of-type {
-  border-radius: 0 0.5rem 0.5rem 0;
-}
-
 .segmente input:checked + label {
-  background: #222;
-  color: #fff;
+  background: var(--surface);
+  color: var(--texte);
+  box-shadow: var(--ombre);
+}
+
+.segmente input:checked + label.ajout {
+  background: var(--positif-fond);
+  color: var(--sur-couleur);
+}
+
+.segmente input:checked + label.retrait {
+  background: var(--negatif-fond);
+  color: var(--sur-couleur);
 }
 
 .segmente input:focus-visible + label {
-  outline: 2px solid;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
+/* Modales : « bottom sheet » sur mobile, centrées sur ordinateur */
+
+dialog {
+  width: 100%;
+  max-width: none;
+  max-height: 92dvh;
+  margin: auto 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--rayon-grand) var(--rayon-grand) 0 0;
+  background: var(--surface);
+  color: var(--texte);
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+
+.feuille {
+  padding: 0.75rem 1rem calc(1rem + env(safe-area-inset-bottom));
+}
+
+.feuille-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.feuille-entete h2 {
+  font-size: 1.125rem;
+}
+
+.fermer {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fond);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@media (min-width: 40rem) {
+  dialog {
+    max-width: 30rem;
+    margin: auto;
+    border-radius: var(--rayon-grand);
+  }
+
+  .feuille {
+    padding-bottom: 1.25rem;
+  }
+}
+
+/* Sans JavaScript, les formulaires des modales s'affichent dans la page */
+html:not(.js) dialog {
+  position: static;
+  display: block;
+  max-height: none;
+  margin: 0;
+  border-radius: var(--rayon);
+  box-shadow: var(--ombre);
+}
+
+html:not(.js) .fermer,
+html:not(.js) .barre-actions {
+  display: none;
+}
+
+/* Retours visuels */
+
+@keyframes monter {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes apparaitre {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes pulsation {
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes fondu {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+@keyframes rotation {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+dialog[open] {
+  animation: monter 0.22s ease-out;
+}
+
+@media (min-width: 40rem) {
+  dialog[open] {
+    animation-name: apparaitre;
+  }
+}
+
+.solde.modifie .montant-solde {
+  animation: pulsation 0.45s ease-out;
+  transform-origin: left center;
+}
+
+.mouvement.nouveau {
+  animation: fondu 0.4s ease-out;
+}
+
 /* Indicateur de chargement : htmx ajoute .htmx-request au formulaire pendant la requête */
-form.htmx-request button::after {
+form.htmx-request .bouton::after {
   content: "";
   display: inline-block;
   width: 0.8em;
@@ -102,8 +687,10 @@ form.htmx-request button::after {
   animation: rotation 0.6s linear infinite;
 }
 
-@keyframes rotation {
-  to {
-    transform: rotate(360deg);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
   }
 }

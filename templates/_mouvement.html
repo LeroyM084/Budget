@@ -1,12 +1,16 @@
-<li class="mouvement" id="mouvement-{{ mouvement.id }}">
-  <span>{{ mouvement.motif }}</span>
-  <time datetime="{{ mouvement.date }}">{{ mouvement.date }}</time>
-  <span class="montant">{% if mouvement.montant > 0 %}+{% endif %}{{ mouvement.montant|euros }}</span>
+<li class="mouvement{% if mouvement.id == nouveau_id %} nouveau{% endif %}">
+  <span class="motif">{{ mouvement.motif }}</span>
+  <span class="montant {{ 'positif' if mouvement.montant > 0 else 'negatif' }}">
+    {%- if mouvement.montant > 0 %}+{% endif %}{{ mouvement.montant|euros -}}
+  </span>
   {% set url = url_for('supprimer_mouvement', id=mouvement.id) %}
   <form method="post" action="{{ url }}"
-        hx-post="{{ url }}" hx-confirm="Supprimer ce mouvement ?"
-        hx-target="closest li" hx-swap="outerHTML">
-    <button>Supprimer</button>
+        hx-post="{{ url }}" hx-swap="none" hx-confirm="Supprimer ce mouvement ?">
+    <button class="supprimer" aria-label="Supprimer « {{ mouvement.motif }} »">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 12a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>
+      </svg>
+    </button>
   </form>
   {% if erreur %}<p class="erreur">{{ erreur }}</p>{% endif %}
 </li>

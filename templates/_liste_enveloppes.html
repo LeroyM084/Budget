@@ -1,5 +1,0 @@
-<ul class="cartes" id="enveloppes-{{ type }}"{% if oob %} hx-swap-oob="true"{% endif %}>
-  {% for enveloppe in enveloppes if enveloppe.type == type %}
-    {% include "_carte_enveloppe.html" %}
-  {% endfor %}
-</ul>

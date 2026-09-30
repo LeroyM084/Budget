@@ -1,1 +1,4 @@
-<p class="solde" id="solde"{% if oob %} hx-swap-oob="true"{% endif %}>Solde : {{ enveloppe.solde|euros }}</p>
+<p class="solde{% if oob %} modifie{% endif %}" id="solde"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <span class="etiquette">Solde</span>
+  <span class="montant-solde{% if enveloppe.solde < 0 %} negatif{% endif %}">{{ enveloppe.solde|euros }}</span>
+</p>
