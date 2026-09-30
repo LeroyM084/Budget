@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block titre %}Connexion · Enveloppes{% endblock %}
+
+{% block contenu %}
+<section class="connexion">
+  <h1>Connexion</h1>
+  {# Envoi classique (sans htmx) : les gestionnaires de mots de passe reconnaissent la connexion. #}
+  <form class="formulaire" method="post" action="{{ url_for('connexion') }}" hx-boost="false">
+    <div class="champ">
+      <label for="nom">Identifiant</label>
+      <input id="nom" name="nom" value="{{ nom }}" autocomplete="username"
+             autocapitalize="none" spellcheck="false" autofocus required>
+    </div>
+    <div class="champ">
+      <label for="mot_de_passe">Mot de passe</label>
+      <input type="password" id="mot_de_passe" name="mot_de_passe"
+             autocomplete="current-password" required>
+    </div>
+    {% if erreur %}<p class="erreur" role="alert">{{ erreur }}</p>{% endif %}
+    <button class="bouton principal">Se connecter</button>
+  </form>
+</section>
+{% endblock %}

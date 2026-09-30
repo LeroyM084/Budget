@@ -4,9 +4,9 @@ from decimal import Decimal
 MONTANT_MAX = Decimal("1000000")
 FORMAT_MONTANT = re.compile(r"[0-9]+(?:\.[0-9]+)?")
 
-SIGNE_MOINS = "−"
-ESPACE_FINE = " "  # séparateur des milliers, insécable
-ESPACE_INSECABLE = " "
+SIGNE_MOINS = "\u2212"
+ESPACE_FINE = "\u202f"  # séparateur des milliers, insécable
+ESPACE_INSECABLE = "\u00a0"
 
 
 def parser_montant(texte):

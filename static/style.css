@@ -120,8 +120,35 @@ main {
 .entete {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   min-height: 3.5rem;
   padding-top: env(safe-area-inset-top);
+}
+
+.discret {
+  min-height: 2.75rem;
+  padding: 0 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--texte-doux);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.connexion {
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 24rem;
+  margin: 2rem auto 0;
+  padding: 1.25rem;
+  border-radius: var(--rayon-grand);
+  background: var(--surface);
+  box-shadow: var(--ombre);
+}
+
+.connexion h1 {
+  font-size: 1.5rem;
 }
 
 .marque {

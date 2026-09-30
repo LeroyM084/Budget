@@ -56,6 +56,11 @@
 <body hx-boost="true" hx-disabled-elt="find button">
   <header class="entete">
     <a href="{{ url_for('accueil') }}" class="marque">{% block marque %}Enveloppes{% endblock %}</a>
+    {% if g.utilisateur %}
+    <form method="post" action="{{ url_for('deconnexion') }}" hx-boost="false">
+      <button class="discret">Déconnexion</button>
+    </form>
+    {% endif %}
   </header>
   <main>
     {% block contenu %}{% endblock %}

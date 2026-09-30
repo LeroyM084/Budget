@@ -24,6 +24,26 @@ La base SQLite est créée automatiquement au démarrage dans `instance/envelopp
 pytest
 ```
 
+## Comptes et connexion
+
+Pas d'inscription : les comptes se créent en ligne de commande. La même commande change le
+mot de passe d'un compte existant, ce qui ferme ses sessions ouvertes.
+
+```sh
+flask --app app utilisateur NOM                                  # en développement
+docker compose exec enveloppes flask --app app utilisateur NOM   # dans le conteneur
+```
+
+Dans Portainer, la même commande se lance depuis la console du conteneur.
+
+- Mot de passe de 12 caractères au moins, conservé sous forme d'empreinte scrypt.
+- Après 5 échecs en 15 minutes, une adresse IP ou un identifiant ne peut plus essayer avant
+  la fin de cette fenêtre glissante (réponse 429). Derrière Cloudflare, l'IP du visiteur est
+  lue dans l'en-tête `CF-Connecting-IP`.
+- Session de 30 jours, prolongée à chaque visite. Cookie `HttpOnly`, `SameSite=Lax`, et
+  `Secure` dans l'image Docker (`SESSION_COOKIE_SECURE=1`) : l'application doit y être servie
+  en HTTPS. Pour un essai en HTTP simple, lancer le conteneur avec `SESSION_COOKIE_SECURE=0`.
+
 ## Docker
 
 L'image lance Gunicorn (2 workers) sur le port 8000, sans le publier sur l'hôte : le proxy

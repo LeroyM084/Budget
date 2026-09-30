@@ -2,9 +2,9 @@ import pytest
 
 from argent import formater_euros, parser_montant
 
-MOINS = "−"
-FINE = " "
-INSECABLE = " "
+MOINS = "\u2212"
+FINE = "\u202f"
+INSECABLE = "\u00a0"
 
 
 @pytest.mark.parametrize(
@@ -51,7 +51,7 @@ def test_parser_montant_valide(texte, centimes):
         ("1_000", "nombre"),
         ("NaN", "nombre"),
         ("Infinity", "nombre"),
-        ("١٢", "nombre"),  # chiffres arabes-indiens, acceptés par Decimal
+        ("\u0661\u0662", "nombre"),  # chiffres arabes-indiens, acceptés par Decimal
         ("1000000,01", "1 000 000"),
         ("2 000 000", "1 000 000"),
     ],

@@ -1,4 +1,5 @@
 import os
+import secrets
 import sqlite3
 from pathlib import Path
 
@@ -157,3 +158,67 @@ def motifs_recents(limite=10):
         (limite,),
     ).fetchall()
     return [ligne["motif"] for ligne in lignes]
+
+
+def get_utilisateur(id):
+    return get_db().execute(
+        "SELECT id, nom, mot_de_passe FROM utilisateur WHERE id = ?", (id,)
+    ).fetchone()
+
+
+def get_utilisateur_par_nom(nom):
+    return get_db().execute(
+        "SELECT id, nom, mot_de_passe FROM utilisateur WHERE nom = ?", (nom,)
+    ).fetchone()
+
+
+def enregistrer_utilisateur(nom, mot_de_passe):
+    """Crée l'utilisateur ou remplace son mot de passe ; renvoie True s'il vient d'être créé."""
+    db = get_db()
+    existant = get_utilisateur_par_nom(nom)
+    if existant is None:
+        db.execute("INSERT INTO utilisateur (nom, mot_de_passe) VALUES (?, ?)", (nom, mot_de_passe))
+    else:
+        db.execute(
+            "UPDATE utilisateur SET mot_de_passe = ? WHERE id = ?", (mot_de_passe, existant["id"])
+        )
+    db.commit()
+    return existant is None
+
+
+def echecs_recents(ip, nom, depuis):
+    """Horodatages (du plus récent au plus ancien) des échecs de connexion postérieurs
+    à `depuis`, pour cette IP puis pour cet identifiant."""
+    db = get_db()
+    par_ip = db.execute(
+        "SELECT horodatage FROM echec_connexion WHERE ip = ? AND horodatage > ?"
+        " ORDER BY horodatage DESC",
+        (ip, depuis),
+    ).fetchall()
+    par_nom = db.execute(
+        "SELECT horodatage FROM echec_connexion WHERE nom = ? AND horodatage > ?"
+        " ORDER BY horodatage DESC",
+        (nom, depuis),
+    ).fetchall()
+    return [ligne[0] for ligne in par_ip], [ligne[0] for ligne in par_nom]
+
+
+def enregistrer_echec(ip, nom, horodatage, oublier_avant):
+    db = get_db()
+    db.execute("DELETE FROM echec_connexion WHERE horodatage <= ?", (oublier_avant,))
+    db.execute(
+        "INSERT INTO echec_connexion (ip, nom, horodatage) VALUES (?, ?, ?)", (ip, nom, horodatage)
+    )
+    db.commit()
+
+
+def cle_secrete():
+    """Clé de signature des sessions : tirée au hasard au premier démarrage, puis conservée.
+    INSERT OR IGNORE garantit une seule clé même si les deux workers démarrent ensemble."""
+    db = get_db()
+    db.execute(
+        "INSERT OR IGNORE INTO parametre (cle, valeur) VALUES ('cle_secrete', ?)",
+        (secrets.token_hex(32),),
+    )
+    db.commit()
+    return db.execute("SELECT valeur FROM parametre WHERE cle = 'cle_secrete'").fetchone()[0]

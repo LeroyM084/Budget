@@ -258,6 +258,14 @@ Critères d'acceptation :
 Critères d'acceptation :
 - `docker compose up -d --build` en local fonctionne, les données survivent à un `docker compose down` / `up`.
 
+## Après la phase 7 — Décisions et ajouts
+
+- **Déploiement** : HTTPS via mon Cloudflare Tunnel ; déploiement et infrastructure gérés par moi. La phase 6 (test sur téléphone) est reportée.
+- **Authentification** (ajoutée à ma demande) :
+  - Connexion par identifiant et mot de passe, **aucune inscription** : comptes créés ou modifiés avec `flask --app app utilisateur NOM`.
+  - Limitation stricte des essais : 5 échecs par période glissante de 15 minutes, par IP et par identifiant ; au-delà, réponse 429.
+  - Session de 30 jours ; changer le mot de passe ferme les sessions ouvertes.
+
 ## Phase 8 — Déploiement sur le homelab
 
 Contexte : VM Ubuntu Server sur Proxmox, Docker géré via Portainer, Caddy en reverse proxy, domaines `.lan` via réécritures DNS AdGuard, accès distant via Tailscale (Split DNS). Code hébergé sur mon Forgejo.
@@ -296,4 +304,4 @@ Critères d'acceptation :
 
 ## Idées pour plus tard (NE PAS implémenter sans demande explicite)
 
-Transfert entre enveloppes, objectif par enveloppe, archivage d'enveloppe, recherche dans l'historique, export CSV, authentification si exposition hors Tailscale.
+Transfert entre enveloppes, objectif par enveloppe, archivage d'enveloppe, recherche dans l'historique, export CSV.

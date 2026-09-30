@@ -3,7 +3,8 @@ FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TZ=Europe/Paris \
-    DATABASE_PATH=/data/enveloppes.db
+    DATABASE_PATH=/data/enveloppes.db \
+    SESSION_COOKIE_SECURE=1
 
 WORKDIR /app
 

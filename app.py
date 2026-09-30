@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from flask import Flask, abort, redirect, render_template, request, url_for
 
+import auth
 import db
 from argent import formater_euros, parser_montant
 
@@ -17,6 +18,7 @@ MOIS = (
 def create_app():
     app = Flask(__name__)
     db.init_app(app)
+    auth.init_app(app)
     app.add_template_filter(formater_euros, "euros")
     app.add_template_filter(libelle_jour)
     app.jinja_env.globals["TYPES"] = TYPES

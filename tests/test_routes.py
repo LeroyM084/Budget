@@ -4,12 +4,15 @@ import struct
 from datetime import date, timedelta
 
 import pytest
+from werkzeug.security import generate_password_hash
 
+import auth
 import db
 from app import create_app, libelle_jour
 
-INSECABLE = " "
+INSECABLE = "\u00a0"
 HTMX = {"HX-Request": "true"}
+MOT_DE_PASSE = "mot de passe de test"
 
 
 @pytest.fixture
@@ -17,12 +20,23 @@ def app(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "test.db"))
     app = create_app()
     app.config["TESTING"] = True
+    with app.app_context():
+        # pbkdf2 \u00e0 une it\u00e9ration : rapide pour les tests (scrypt par d\u00e9faut en vrai)
+        db.enregistrer_utilisateur("test", generate_password_hash(MOT_DE_PASSE, "pbkdf2:sha256:1"))
     return app
 
 
 @pytest.fixture
-def client(app):
+def anonyme(app):
     return app.test_client()
+
+
+@pytest.fixture
+def client(app):
+    client = app.test_client()
+    reponse = client.post("/connexion", data={"nom": "test", "mot_de_passe": MOT_DE_PASSE})
+    assert reponse.status_code == 303
+    return client
 
 
 def creer_enveloppe(app, nom="Courses", type="physique"):
@@ -52,7 +66,7 @@ def test_accueil_affiche_soldes_et_totaux(app, client):
 
     assert "Courses" in page and "Banque" in page
     assert f"10,00{INSECABLE}€" in page
-    assert f"1 244,56{INSECABLE}€" in page
+    assert f"1\u202f244,56{INSECABLE}€" in page
 
 
 def test_creation(app, client):
@@ -143,7 +157,7 @@ def test_retrait_a_decouvert_autorise_en_demat(app, client):
 
     assert poster_mouvement(client, id, "retrait", "25").status_code == 303
     assert solde(app, id) == -1500
-    assert f"−15,00{INSECABLE}€" in client.get(f"/enveloppes/{id}").get_data(as_text=True)
+    assert f"\u221215,00{INSECABLE}€" in client.get(f"/enveloppes/{id}").get_data(as_text=True)
 
 
 @pytest.mark.parametrize(
@@ -204,7 +218,7 @@ def test_suppression_ajout_refusee_si_physique_devient_negative(app, client):
     reponse = client.post(f"/mouvements/{ajout}/supprimer")
 
     assert reponse.status_code == 422
-    message = f"Suppression impossible : le solde passerait à −40,00{INSECABLE}€."
+    message = f"Suppression impossible : le solde passerait à \u221240,00{INSECABLE}€."
     assert message in reponse.get_data(as_text=True)
     assert solde(app, id) == 1000
 
@@ -576,8 +590,8 @@ def test_couleurs_pwa_identiques_au_fond_du_css(client):
 # --- Conteneur (phase 7) ---
 
 
-def test_sante(client):
-    reponse = client.get("/sante")
+def test_sante(anonyme):
+    reponse = anonyme.get("/sante")
 
     assert reponse.status_code == 200
     assert reponse.get_data(as_text=True) == "OK"
@@ -586,3 +600,153 @@ def test_sante(client):
 def test_base_en_mode_wal(app):
     with app.app_context():
         assert db.get_db().execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+
+
+# --- Authentification ---
+
+
+def connecter(client, nom="test", mot_de_passe=MOT_DE_PASSE, ip="203.0.113.1"):
+    return client.post(
+        "/connexion",
+        data={"nom": nom, "mot_de_passe": mot_de_passe},
+        headers={"CF-Connecting-IP": ip},
+    )
+
+
+def test_pages_protegees_sans_connexion(app, anonyme):
+    for url in ["/", "/enveloppes/1", "/inexistante"]:
+        reponse = anonyme.get(url)
+        assert reponse.status_code == 303
+        assert reponse.headers["Location"] == "/connexion"
+
+    assert anonyme.post("/enveloppes", data={"nom": "Pirate", "type": "demat"}).status_code == 303
+    with app.app_context():
+        assert db.lister_enveloppes() == []
+
+
+def test_requete_htmx_sans_connexion_renvoie_vers_la_connexion(anonyme):
+    reponse = anonyme.post("/enveloppes", data={"nom": "Pirate", "type": "demat"}, headers=HTMX)
+
+    assert reponse.status_code == 401
+    assert reponse.headers["HX-Redirect"] == "/connexion"
+
+
+def test_pages_publiques(anonyme):
+    page = anonyme.get("/connexion").get_data(as_text=True)
+
+    assert 'autocomplete="current-password"' in page
+    assert "Déconnexion" not in page
+    assert fichier_statique(anonyme, "style.css")
+    assert fichier_statique(anonyme, "manifest.json")
+
+
+def test_connexion_reussie(anonyme):
+    reponse = connecter(anonyme, nom="TEST")
+
+    assert reponse.status_code == 303
+    assert reponse.headers["Location"] == "/"
+    page = anonyme.get("/").get_data(as_text=True)
+    assert "Déconnexion" in page
+    assert anonyme.get("/connexion").headers["Location"] == "/"
+
+
+@pytest.mark.parametrize(("nom", "mot_de_passe"), [("test", "mauvais"), ("inconnu", MOT_DE_PASSE)])
+def test_connexion_refusee_sans_dire_pourquoi(anonyme, nom, mot_de_passe):
+    reponse = connecter(anonyme, nom=nom, mot_de_passe=mot_de_passe)
+
+    assert reponse.status_code == 401
+    assert "Identifiant ou mot de passe incorrect." in reponse.get_data(as_text=True)
+    assert anonyme.get("/").status_code == 303
+
+
+def test_cookie_de_session_protege(anonyme, monkeypatch, tmp_path):
+    cookie = connecter(anonyme).headers["Set-Cookie"]
+
+    assert "HttpOnly" in cookie and "SameSite=Lax" in cookie and "Expires=" in cookie
+    assert "Secure" not in cookie
+
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "1")
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "securise.db"))
+    app_securisee = create_app()
+    with app_securisee.app_context():
+        db.enregistrer_utilisateur("test", generate_password_hash(MOT_DE_PASSE, "pbkdf2:sha256:1"))
+    assert "Secure" in connecter(app_securisee.test_client()).headers["Set-Cookie"]
+
+
+def test_limite_par_ip(anonyme):
+    for numero in range(auth.ECHECS_MAX):
+        assert connecter(anonyme, nom=f"essai{numero}", mot_de_passe="x").status_code == 401
+
+    bloquee = connecter(anonyme)
+    assert bloquee.status_code == 429
+    assert 0 < int(bloquee.headers["Retry-After"]) <= auth.FENETRE
+    assert "Trop de tentatives" in bloquee.get_data(as_text=True)
+    assert connecter(anonyme, ip="198.51.100.7").status_code == 303
+
+
+def test_limite_par_identifiant_quelle_que_soit_l_ip(anonyme):
+    for numero in range(auth.ECHECS_MAX):
+        assert connecter(anonyme, mot_de_passe="x", ip=f"198.51.100.{numero}").status_code == 401
+
+    assert connecter(anonyme, ip="192.0.2.99").status_code == 429
+
+
+def test_limite_levee_apres_la_fenetre(anonyme, monkeypatch):
+    depart = auth.maintenant()
+    for _ in range(auth.ECHECS_MAX):
+        connecter(anonyme, mot_de_passe="x")
+    assert connecter(anonyme).status_code == 429
+
+    monkeypatch.setattr(auth, "maintenant", lambda: depart + auth.FENETRE + 1)
+    assert connecter(anonyme).status_code == 303
+
+
+def test_essais_pendant_le_blocage_ne_prolongent_pas_le_blocage(anonyme, monkeypatch):
+    depart = auth.maintenant()
+    for _ in range(auth.ECHECS_MAX):
+        connecter(anonyme, mot_de_passe="x")
+    monkeypatch.setattr(auth, "maintenant", lambda: depart + auth.FENETRE - 60)
+    assert connecter(anonyme, mot_de_passe="x").status_code == 429
+
+    monkeypatch.setattr(auth, "maintenant", lambda: depart + auth.FENETRE + 1)
+    assert connecter(anonyme).status_code == 303
+
+
+def test_deconnexion(client):
+    reponse = client.post("/deconnexion")
+
+    assert reponse.status_code == 303
+    assert reponse.headers["Location"] == "/connexion"
+    assert client.get("/").status_code == 303
+
+
+def test_nouveau_mot_de_passe_ferme_les_sessions(app, client):
+    assert client.get("/").status_code == 200
+
+    with app.app_context():
+        db.enregistrer_utilisateur("test", generate_password_hash("un autre mot de passe", "pbkdf2:sha256:1"))
+
+    assert client.get("/").status_code == 303
+
+
+def test_commande_utilisateur(app, anonyme):
+    lanceur = app.test_cli_runner()
+
+    trop_court = lanceur.invoke(args=["utilisateur", "mateo"], input="court\ncourt\n")
+    assert trop_court.exit_code != 0
+    assert "au moins 12 caractères" in trop_court.output
+
+    cree = lanceur.invoke(args=["utilisateur", "mateo"], input="un bon mot de passe\nun bon mot de passe\n")
+    assert cree.exit_code == 0
+    assert "Utilisateur « mateo » créé." in cree.output
+    assert connecter(anonyme, nom="mateo", mot_de_passe="un bon mot de passe").status_code == 303
+
+    change = lanceur.invoke(args=["utilisateur", "Mateo"], input="un autre mot de passe\nun autre mot de passe\n")
+    assert change.exit_code == 0
+    assert "changé" in change.output
+    assert anonyme.get("/").status_code == 303
+
+
+def test_cle_secrete_conservee_entre_deux_demarrages(app):
+    assert app.secret_key
+    assert create_app().secret_key == app.secret_key
