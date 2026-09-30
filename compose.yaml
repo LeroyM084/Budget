@@ -4,6 +4,9 @@ services:
   enveloppes:
     build: .
     image: enveloppes
+    # Toujours reconstruire (image locale, jamais tirée d'un registre) : un redéploiement
+    # Portainer prend ainsi en compte le nouveau code.
+    pull_policy: build
     restart: unless-stopped
     # Aucun port publié sur l'hôte : Caddy joint l'application par son réseau.
     volumes:

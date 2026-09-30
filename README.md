@@ -26,16 +26,20 @@ pytest
 
 ## Docker
 
-L'image lance Gunicorn (2 workers) sur le port 8000, sans le publier sur l'hôte :
-Caddy joint le conteneur `enveloppes` par son propre réseau Docker, dont le nom se règle
-avec la variable `CADDY_NETWORK` (`caddy` par défaut). Les données sont dans le volume
-`enveloppes_donnees`, monté sur `/data`.
+L'image lance Gunicorn (2 workers) sur le port 8000, sans le publier sur l'hôte : le proxy
+(Caddy ou cloudflared) joint l'application à l'adresse `http://enveloppes:8000` par son propre
+réseau Docker, dont le nom se règle avec la variable `CADDY_NETWORK` (`caddy` par défaut).
+Les données sont dans le volume `enveloppes_donnees`, monté sur `/data`.
 
 ```sh
 docker compose up -d --build
 ```
 
-Pour un essai local sans Caddy, créer d'abord le réseau attendu : `docker network create caddy`.
+Avec Portainer : créer la stack depuis le dépôt Git (la construction de l'image a besoin des
+sources), la nommer `enveloppes` et définir `CADDY_NETWORK` dans ses variables d'environnement.
+Chaque redéploiement reconstruit l'image avec le code à jour.
+
+Pour un essai local sans proxy, créer d'abord le réseau attendu : `docker network create caddy`.
 
 ## Icônes
 
