@@ -13,7 +13,6 @@ services:
       - donnees:/data
     networks:
       - enveloppes_net
-      - caddy
 
 volumes:
   donnees:
@@ -21,7 +20,3 @@ volumes:
 networks:
   enveloppes_net:
     name: enveloppes_net
-  caddy:
-    # Réseau Docker de Caddy, créé ailleurs ; nom réglable avec CADDY_NETWORK.
-    name: ${CADDY_NETWORK:-caddy}
-    external: true
