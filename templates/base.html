@@ -3,10 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# Pas de cache d'historique (soldes toujours frais, rien dans le navigateur) ;
+     les réponses 422 (erreurs de validation) sont affichées. #}
+  <meta name="htmx-config" content='{
+    "historyCacheSize": 0,
+    "responseHandling": [
+      {"code": "204", "swap": false},
+      {"code": "[23]..", "swap": true},
+      {"code": "422", "swap": true, "error": true},
+      {"code": "[45]..", "swap": false, "error": true}
+    ]
+  }'>
   <title>{% block titre %}Enveloppes{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='htmx.min.js') }}" defer></script>
 </head>
-<body>
+<body hx-boost="true" hx-disabled-elt="find button">
   <header>
     <a href="{{ url_for('accueil') }}">Enveloppes</a>
   </header>

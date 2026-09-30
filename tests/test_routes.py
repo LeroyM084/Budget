@@ -1,9 +1,12 @@
+from datetime import date
+
 import pytest
 
 import db
 from app import create_app
 
 INSECABLE = " "
+HTMX = {"HX-Request": "true"}
 
 
 @pytest.fixture
@@ -292,3 +295,137 @@ def test_post_depuis_le_meme_site_accepte(client):
 
 def test_affichage_en_iframe_interdit(client):
     assert client.get("/").headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+
+
+# --- Requêtes HTMX : fragments au lieu de redirections ---
+
+
+def test_pages_chargent_htmx(client):
+    page = client.get("/").get_data(as_text=True)
+
+    assert 'src="/static/htmx.min.js" defer' in page
+    assert '<body hx-boost="true"' in page
+    assert client.get("/static/htmx.min.js").status_code == 200
+
+
+def test_htmx_creation_renvoie_des_fragments(app, client):
+    reponse = client.post("/enveloppes", data={"nom": "Courses", "type": "physique"}, headers=HTMX)
+
+    assert reponse.status_code == 200
+    assert "Location" not in reponse.headers
+    page = reponse.get_data(as_text=True)
+    assert "<html" not in page
+    assert page.startswith('<form id="form-enveloppe"')
+    assert 'value=""' in page
+    assert '<ul class="cartes" id="enveloppes-physique" hx-swap-oob="true">' in page
+    assert "Courses" in page
+    assert '<section class="totaux" id="totaux" hx-swap-oob="true">' in page
+
+
+def test_htmx_creation_invalide_renvoie_le_formulaire(client):
+    reponse = client.post("/enveloppes", data={"nom": "", "type": "physique"}, headers=HTMX)
+
+    assert reponse.status_code == 422
+    page = reponse.get_data(as_text=True)
+    assert "<html" not in page
+    assert '<form id="form-enveloppe"' in page
+    assert "Le nom est obligatoire." in page
+    assert "hx-swap-oob" not in page
+
+
+def test_htmx_ajout_renvoie_ligne_solde_et_formulaire_vide(app, client):
+    id = creer_enveloppe(app)
+
+    reponse = client.post(
+        f"/enveloppes/{id}/mouvements",
+        data={"sens": "ajout", "montant": "12,50", "motif": "Salaire", "date": "2026-09-01"},
+        headers=HTMX,
+    )
+
+    assert reponse.status_code == 200
+    assert "Location" not in reponse.headers
+    page = reponse.get_data(as_text=True)
+    assert "<html" not in page
+    assert page.startswith('<li class="mouvement"')
+    assert "Salaire" in page
+    assert f'<p class="solde" id="solde" hx-swap-oob="true">Solde : 12,50{INSECABLE}€</p>' in page
+    formulaire = page[page.index('<form id="form-mouvement"'):]
+    assert 'hx-swap-oob="true"' in formulaire
+    assert 'value="ajout" required checked' in formulaire
+    assert 'id="montant" name="montant" value=""' in formulaire
+    assert 'id="motif" name="motif" maxlength="100" value=""' in formulaire
+    assert f'value="{date.today().isoformat()}"' in formulaire
+
+
+def test_htmx_mouvement_invalide_renvoie_le_formulaire(app, client):
+    id = creer_enveloppe(app)
+
+    reponse = client.post(
+        f"/enveloppes/{id}/mouvements",
+        data={"sens": "retrait", "montant": "5", "motif": "Pain", "date": "2026-09-01"},
+        headers=HTMX,
+    )
+
+    assert reponse.status_code == 422
+    page = reponse.get_data(as_text=True)
+    assert page.startswith('<form id="form-mouvement"')
+    assert 'hx-swap-oob="true"' in page
+    assert "Solde insuffisant" in page
+    assert 'value="Pain"' in page
+    assert '<li class="mouvement"' not in page
+
+
+def test_htmx_suppression_mouvement_renvoie_le_solde(app, client):
+    id = creer_enveloppe(app)
+    poster_mouvement(client, id, "ajout", "10")
+    poster_mouvement(client, id, "retrait", "3")
+    with app.app_context():
+        retrait = db.lister_mouvements(id)[0]["id"]
+
+    reponse = client.post(f"/mouvements/{retrait}/supprimer", headers=HTMX)
+
+    assert reponse.status_code == 200
+    assert reponse.get_data(as_text=True) == (
+        f'<p class="solde" id="solde" hx-swap-oob="true">Solde : 10,00{INSECABLE}€</p>'
+    )
+    assert solde(app, id) == 1000
+
+
+def test_htmx_suppression_mouvement_refusee_renvoie_la_ligne(app, client):
+    id = creer_enveloppe(app)
+    poster_mouvement(client, id, "ajout", "50")
+    poster_mouvement(client, id, "retrait", "40")
+    with app.app_context():
+        ajout = db.lister_mouvements(id)[1]["id"]
+
+    reponse = client.post(f"/mouvements/{ajout}/supprimer", headers=HTMX)
+
+    assert reponse.status_code == 422
+    page = reponse.get_data(as_text=True)
+    assert page.startswith(f'<li class="mouvement" id="mouvement-{ajout}">')
+    assert "Suppression impossible" in page
+
+
+def test_htmx_suppression_enveloppe_navigue_vers_l_accueil(app, client):
+    id = creer_enveloppe(app)
+
+    reponse = client.post(f"/enveloppes/{id}/supprimer", headers=HTMX)
+
+    assert reponse.status_code == 200
+    assert reponse.headers["HX-Location"] == "/"
+    assert "Location" not in reponse.headers
+    with app.app_context():
+        assert db.get_enveloppe(id) is None
+
+
+def test_formulaire_booste_garde_la_redirection(app, client):
+    id = creer_enveloppe(app)
+
+    reponse = client.post(
+        f"/enveloppes/{id}/renommer",
+        data={"nom": "Alimentation"},
+        headers={"HX-Request": "true", "HX-Boosted": "true"},
+    )
+
+    assert reponse.status_code == 303
+    assert reponse.headers["Location"] == f"/enveloppes/{id}"

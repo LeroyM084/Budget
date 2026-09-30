@@ -24,7 +24,9 @@
 
 <details{% if erreurs.nom %} open{% endif %}>
   <summary>Gérer l'enveloppe</summary>
-  <form method="post" action="{{ url_for('renommer_enveloppe', id=enveloppe.id) }}">
+  {# Formulaire boosté : même URL avant et après, et la page ne remonte pas en haut. #}
+  <form method="post" action="{{ url_for('renommer_enveloppe', id=enveloppe.id) }}"
+        hx-push-url="false" hx-swap="innerHTML show:none">
     <div class="champ">
       <label for="nom">Nouveau nom</label>
       <input id="nom" name="nom" value="{{ valeurs.nom }}" required>
@@ -32,7 +34,9 @@
     </div>
     <button>Renommer</button>
   </form>
-  <form method="post" action="{{ url_for('supprimer_enveloppe', id=enveloppe.id) }}">
+  {% set url = url_for('supprimer_enveloppe', id=enveloppe.id) %}
+  <form method="post" action="{{ url }}"
+        hx-post="{{ url }}" hx-confirm="Supprimer cette enveloppe et tous ses mouvements ?">
     <button>Supprimer l'enveloppe et ses mouvements</button>
   </form>
 </details>

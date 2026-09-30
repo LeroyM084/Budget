@@ -2,7 +2,10 @@
   <span>{{ mouvement.motif }}</span>
   <time datetime="{{ mouvement.date }}">{{ mouvement.date }}</time>
   <span class="montant">{% if mouvement.montant > 0 %}+{% endif %}{{ mouvement.montant|euros }}</span>
-  <form method="post" action="{{ url_for('supprimer_mouvement', id=mouvement.id) }}">
+  {% set url = url_for('supprimer_mouvement', id=mouvement.id) %}
+  <form method="post" action="{{ url }}"
+        hx-post="{{ url }}" hx-confirm="Supprimer ce mouvement ?"
+        hx-target="closest li" hx-swap="outerHTML">
     <button>Supprimer</button>
   </form>
   {% if erreur %}<p class="erreur">{{ erreur }}</p>{% endif %}

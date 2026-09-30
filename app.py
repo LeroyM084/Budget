@@ -47,9 +47,22 @@ def create_app():
         if valeurs["type"] not in TYPES:
             erreurs["type"] = "Choisissez un type."
         if erreurs:
+            if requete_htmx():
+                return render_template("_form_enveloppe.html", valeurs=valeurs, erreurs=erreurs), 422
             return page_accueil(valeurs, erreurs), 422
 
         db.creer_enveloppe(valeurs["nom"], valeurs["type"])
+        if requete_htmx():
+            return (
+                render_template("_form_enveloppe.html", valeurs={}, erreurs={})
+                + render_template(
+                    "_liste_enveloppes.html",
+                    type=valeurs["type"],
+                    enveloppes=db.lister_enveloppes(),
+                    oob=True,
+                )
+                + render_template("_totaux.html", totaux=db.totaux(), oob=True)
+            )
         return redirect(url_for("accueil"), code=303)
 
     @app.get("/enveloppes/<int:id>")
@@ -89,10 +102,32 @@ def create_app():
             erreurs["date"] = "Saisissez une date valide."
 
         if erreurs:
+            if requete_htmx():
+                return render_template(
+                    "_form_mouvement.html",
+                    enveloppe=enveloppe,
+                    valeurs=valeurs,
+                    erreurs=erreurs,
+                    oob=True,
+                ), 422
             return page_enveloppe(enveloppe, valeurs, erreurs), 422
 
         montant = centimes if valeurs["sens"] == "ajout" else -centimes
-        db.ajouter_mouvement(id, montant, valeurs["motif"], date_operation.isoformat())
+        mouvement_id = db.ajouter_mouvement(id, montant, valeurs["motif"], date_operation.isoformat())
+        if requete_htmx():
+            enveloppe = db.get_enveloppe(id)
+            formulaire_vide = {"sens": valeurs["sens"], "date": date.today().isoformat()}
+            return (
+                render_template("_mouvement.html", mouvement=db.get_mouvement(mouvement_id))
+                + render_template("_solde.html", enveloppe=enveloppe, oob=True)
+                + render_template(
+                    "_form_mouvement.html",
+                    enveloppe=enveloppe,
+                    valeurs=formulaire_vide,
+                    erreurs={},
+                    oob=True,
+                )
+            )
         return redirect(url_for("voir_enveloppe", id=id), code=303)
 
     @app.post("/enveloppes/<int:id>/renommer")
@@ -109,6 +144,9 @@ def create_app():
     def supprimer_enveloppe(id):
         trouver_enveloppe(id)
         db.supprimer_enveloppe(id)
+        if requete_htmx():
+            # HX-Location navigue vers l'accueil en AJAX, là où HX-Redirect recharge la page.
+            return "", {"HX-Location": url_for("accueil")}
         return redirect(url_for("accueil"), code=303)
 
     @app.post("/mouvements/<int:id>/supprimer")
@@ -120,12 +158,21 @@ def create_app():
         nouveau_solde = enveloppe["solde"] - mouvement["montant"]
         if decouvert_interdit(enveloppe, nouveau_solde):
             erreur = f"Suppression impossible : le solde passerait à {formater_euros(nouveau_solde)}."
+            if requete_htmx():
+                return render_template("_mouvement.html", mouvement=mouvement, erreur=erreur), 422
             return page_enveloppe(enveloppe, erreurs={f"mouvement-{id}": erreur}), 422
 
         enveloppe_id = db.supprimer_mouvement(id)
+        if requete_htmx():
+            return render_template("_solde.html", enveloppe=db.get_enveloppe(enveloppe_id), oob=True)
         return redirect(url_for("voir_enveloppe", id=enveloppe_id), code=303)
 
     return app
+
+
+def requete_htmx():
+    """Requête hx-post d'un fragment ; une navigation hx-boost attend une page complète."""
+    return request.headers.get("HX-Request") == "true" and request.headers.get("HX-Boosted") != "true"
 
 
 def trouver_enveloppe(id):

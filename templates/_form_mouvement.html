@@ -1,4 +1,7 @@
-<form method="post" action="{{ url_for('ajouter_mouvement', id=enveloppe.id) }}">
+{% set url = url_for('ajouter_mouvement', id=enveloppe.id) -%}
+<form id="form-mouvement" method="post" action="{{ url }}"
+      hx-post="{{ url }}" hx-target="#historique" hx-swap="afterbegin"
+      {%- if oob %} hx-swap-oob="true"{% endif %}>
   <fieldset class="champ">
     <legend>Sens</legend>
     <div class="segmente">

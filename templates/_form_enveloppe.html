@@ -1,0 +1,21 @@
+{% set url = url_for('creer_enveloppe') -%}
+<form id="form-enveloppe" method="post" action="{{ url }}"
+      hx-post="{{ url }}" hx-target="this" hx-swap="outerHTML">
+  <div class="champ">
+    <label for="nom">Nom</label>
+    <input id="nom" name="nom" value="{{ valeurs.nom }}" required>
+    {% if erreurs.nom %}<p class="erreur">{{ erreurs.nom }}</p>{% endif %}
+  </div>
+  <fieldset class="champ">
+    <legend>Type</legend>
+    <div class="segmente">
+      {% for type, libelle in TYPES.items() %}
+      <input type="radio" id="type-{{ type }}" name="type" value="{{ type }}" required
+             {%- if valeurs.type == type %} checked{% endif %}>
+      <label for="type-{{ type }}">{{ libelle }}</label>
+      {% endfor %}
+    </div>
+    {% if erreurs.type %}<p class="erreur">{{ erreurs.type }}</p>{% endif %}
+  </fieldset>
+  <button>Créer l'enveloppe</button>
+</form>
