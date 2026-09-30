@@ -13,3 +13,13 @@ flask --app app run --debug
 ```
 
 L'application est alors disponible sur <http://127.0.0.1:5000>.
+
+La base SQLite est créée automatiquement au démarrage dans `instance/enveloppes.db`
+(chemin modifiable avec la variable d'environnement `DATABASE_PATH`).
+`flask --app app init-db` crée les tables manquantes sans toucher aux données.
+
+## Tests
+
+```sh
+pytest
+```
