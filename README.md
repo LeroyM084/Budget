@@ -26,6 +26,7 @@ pytest
 
 ## Comptes et connexion
 
+Chaque compte a ses propres enveloppes : aucune donnée n'est partagée entre comptes.
 Pas d'inscription : les comptes se créent en ligne de commande. La même commande change le
 mot de passe d'un compte existant, ce qui ferme ses sessions ouvertes.
 

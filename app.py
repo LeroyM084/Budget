@@ -71,6 +71,16 @@ def create_app():
             )
         return redirect(url_for("accueil"), code=303)
 
+    @app.post("/enveloppes/ordre")
+    def ordonner_enveloppes():
+        try:
+            ids = [int(id) for id in request.form.getlist("id")]
+        except ValueError:
+            abort(400)
+        if not db.ordonner_enveloppes(ids):
+            abort(400)
+        return "", 204
+
     @app.get("/enveloppes/<int:id>")
     def voir_enveloppe(id):
         return page_enveloppe(trouver_enveloppe(id))

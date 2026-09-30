@@ -46,6 +46,39 @@
       }
     });
 
+    // Glisser-déposer des enveloppes par leur poignée, à l'intérieur de leur section
+    // (une liste .cartes par type) ; le nouvel ordre est enregistré au lâcher.
+    document.addEventListener("pointerdown", (evenement) => {
+      const poignee = evenement.target.closest(".poignee");
+      if (!poignee) return;
+      evenement.preventDefault();
+      const carte = poignee.closest("li");
+      const liste = carte.parentElement;
+      carte.classList.add("deplacee");
+      const deplacer = (e) => {
+        const voisine = [...liste.children].find((li) => {
+          const r = li.getBoundingClientRect();
+          return li !== carte && e.clientY > r.top && e.clientY < r.bottom;
+        });
+        if (voisine) {
+          const avant = e.clientY < voisine.getBoundingClientRect().top + voisine.offsetHeight / 2;
+          liste.insertBefore(carte, avant ? voisine : voisine.nextSibling);
+        }
+      };
+      const lacher = () => {
+        carte.classList.remove("deplacee");
+        document.removeEventListener("pointermove", deplacer);
+        document.removeEventListener("pointerup", lacher);
+        document.removeEventListener("pointercancel", lacher);
+        const donnees = new URLSearchParams([...liste.children].map((li) => ["id", li.dataset.id]));
+        fetch("/enveloppes/ordre", { method: "POST", body: donnees });
+      };
+      // Écoute sur le document : la carte change de place dans le DOM pendant le geste.
+      document.addEventListener("pointermove", deplacer);
+      document.addEventListener("pointerup", lacher);
+      document.addEventListener("pointercancel", lacher);
+    });
+
     document.addEventListener("htmx:afterRequest", (evenement) => {
       if (evenement.detail.successful) {
         evenement.target.closest("dialog")?.close();

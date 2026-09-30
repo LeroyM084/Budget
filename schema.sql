@@ -1,10 +1,14 @@
 PRAGMA foreign_keys = ON;
 
+-- Chaque enveloppe appartient à un utilisateur : les comptes ne partagent rien.
 CREATE TABLE IF NOT EXISTS enveloppe (
-    id            INTEGER PRIMARY KEY,
-    nom           TEXT    NOT NULL UNIQUE CHECK (length(trim(nom)) > 0),
-    type          TEXT    NOT NULL CHECK (type IN ('physique', 'demat')),
-    cree_le       TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    id              INTEGER PRIMARY KEY,
+    utilisateur_id  INTEGER REFERENCES utilisateur(id) ON DELETE CASCADE,
+    nom             TEXT    NOT NULL CHECK (length(trim(nom)) > 0),
+    type            TEXT    NOT NULL CHECK (type IN ('physique', 'demat')),
+    position        INTEGER NOT NULL DEFAULT 0,               -- ordre choisi dans sa section
+    cree_le         TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    UNIQUE (utilisateur_id, nom)
 );
 
 CREATE TABLE IF NOT EXISTS mouvement (

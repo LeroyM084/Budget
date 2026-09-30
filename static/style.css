@@ -302,6 +302,41 @@ main:has(#accueil-vide) .barre-actions {
   gap: 0.5rem;
 }
 
+.cartes li {
+  position: relative;
+}
+
+/* Poignée de glisser-déposer, posée sur le bord droit de la carte */
+.poignee {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 100%;
+  color: var(--texte-doux);
+  cursor: grab;
+  touch-action: none;
+}
+
+.cartes li:has(.poignee) .carte {
+  padding-right: 3rem;
+}
+
+.cartes li.deplacee {
+  z-index: 1;
+  opacity: 0.8;
+}
+
+.cartes li.deplacee .carte {
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+}
+
+html:not(.js) .poignee {
+  display: none;
+}
+
 .carte {
   display: flex;
   align-items: center;

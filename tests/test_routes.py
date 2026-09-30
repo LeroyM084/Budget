@@ -1,9 +1,12 @@
 import json
+import sqlite3
+from contextlib import contextmanager
 import re
 import struct
 from datetime import date, timedelta
 
 import pytest
+from flask import g
 from werkzeug.security import generate_password_hash
 
 import auth
@@ -39,13 +42,21 @@ def client(app):
     return client
 
 
-def creer_enveloppe(app, nom="Courses", type="physique"):
+@contextmanager
+def en_tant_que(app, nom="test"):
+    """Contexte d'application où les requêtes portent sur les données de l'utilisateur `nom`."""
     with app.app_context():
+        g.utilisateur = db.get_utilisateur_par_nom(nom)
+        yield
+
+
+def creer_enveloppe(app, nom="Courses", type="physique"):
+    with en_tant_que(app):
         return db.creer_enveloppe(nom, type)
 
 
 def solde(app, id):
-    with app.app_context():
+    with en_tant_que(app):
         return db.get_enveloppe(id)["solde"]
 
 
@@ -75,7 +86,7 @@ def test_creation(app, client):
     assert reponse.status_code == 303
     assert reponse.headers["Location"] == "/"
     assert "Courses" in client.get("/").get_data(as_text=True)
-    with app.app_context():
+    with en_tant_que(app):
         assert [(e["nom"], e["type"]) for e in db.lister_enveloppes()] == [("Courses", "physique")]
 
 
@@ -89,7 +100,7 @@ def test_creation_doublon_insensible_a_la_casse(app, client, existant, doublon):
     page = reponse.get_data(as_text=True)
     assert "Une enveloppe porte déjà ce nom." in page
     assert f'value="{doublon}"' in page
-    with app.app_context():
+    with en_tant_que(app):
         assert len(db.lister_enveloppes()) == 1
 
 
@@ -100,7 +111,7 @@ def test_creation_invalide(app, client):
     page = reponse.get_data(as_text=True)
     assert "Le nom est obligatoire." in page
     assert "Choisissez un type." in page
-    with app.app_context():
+    with en_tant_que(app):
         assert db.lister_enveloppes() == []
 
 
@@ -125,7 +136,7 @@ def test_retrait(app, client):
 
     assert reponse.status_code == 303
     assert solde(app, id) == 1500
-    with app.app_context():
+    with en_tant_que(app):
         assert [m["montant"] for m in db.lister_mouvements(id)] == [-500, 2000]
 
 
@@ -198,7 +209,7 @@ def test_suppression_mouvement(app, client):
     id = creer_enveloppe(app)
     poster_mouvement(client, id, "ajout", "10")
     poster_mouvement(client, id, "retrait", "3")
-    with app.app_context():
+    with en_tant_que(app):
         retrait = db.lister_mouvements(id)[0]["id"]
 
     reponse = client.post(f"/mouvements/{retrait}/supprimer")
@@ -212,7 +223,7 @@ def test_suppression_ajout_refusee_si_physique_devient_negative(app, client):
     id = creer_enveloppe(app)
     poster_mouvement(client, id, "ajout", "50")
     poster_mouvement(client, id, "retrait", "40")
-    with app.app_context():
+    with en_tant_que(app):
         ajout = db.lister_mouvements(id)[1]["id"]
 
     reponse = client.post(f"/mouvements/{ajout}/supprimer")
@@ -227,7 +238,7 @@ def test_suppression_ajout_autorisee_a_decouvert_en_demat(app, client):
     id = creer_enveloppe(app, "Banque", "demat")
     poster_mouvement(client, id, "ajout", "50")
     poster_mouvement(client, id, "retrait", "40")
-    with app.app_context():
+    with en_tant_que(app):
         ajout = db.lister_mouvements(id)[1]["id"]
 
     assert client.post(f"/mouvements/{ajout}/supprimer").status_code == 303
@@ -245,7 +256,7 @@ def test_suppression_enveloppe_en_cascade(app, client):
     assert reponse.status_code == 303
     assert reponse.headers["Location"] == "/"
     assert client.get(f"/enveloppes/{id}").status_code == 404
-    with app.app_context():
+    with en_tant_que(app):
         restants = db.get_db().execute("SELECT enveloppe_id FROM mouvement").fetchall()
     assert [ligne["enveloppe_id"] for ligne in restants] == [autre]
 
@@ -257,7 +268,7 @@ def test_renommer(app, client):
 
     assert reponse.status_code == 303
     assert reponse.headers["Location"] == f"/enveloppes/{id}"
-    with app.app_context():
+    with en_tant_que(app):
         assert db.get_enveloppe(id)["nom"] == "Courses"
 
 
@@ -269,7 +280,7 @@ def test_renommer_doublon(app, client):
 
     assert reponse.status_code == 422
     assert "Une enveloppe porte déjà ce nom." in reponse.get_data(as_text=True)
-    with app.app_context():
+    with en_tant_que(app):
         assert db.get_enveloppe(id)["nom"] == "Banque"
 
 
@@ -296,7 +307,7 @@ def test_post_depuis_un_autre_site_refuse(app, client, provenance):
     )
 
     assert reponse.status_code == 403
-    with app.app_context():
+    with en_tant_que(app):
         assert db.lister_enveloppes() == []
 
 
@@ -402,7 +413,7 @@ def test_htmx_suppression_mouvement_renvoie_historique_et_solde(app, client):
     id = creer_enveloppe(app)
     poster_mouvement(client, id, "ajout", "10", motif="Retrait DAB")
     poster_mouvement(client, id, "retrait", "3", motif="Boulangerie")
-    with app.app_context():
+    with en_tant_que(app):
         retrait = db.lister_mouvements(id)[0]["id"]
 
     reponse = client.post(f"/mouvements/{retrait}/supprimer", headers=HTMX)
@@ -421,7 +432,7 @@ def test_htmx_suppression_mouvement_refusee_renvoie_l_historique(app, client):
     id = creer_enveloppe(app)
     poster_mouvement(client, id, "ajout", "50")
     poster_mouvement(client, id, "retrait", "40")
-    with app.app_context():
+    with en_tant_que(app):
         ajout = db.lister_mouvements(id)[1]["id"]
 
     reponse = client.post(f"/mouvements/{ajout}/supprimer", headers=HTMX)
@@ -441,7 +452,7 @@ def test_htmx_suppression_enveloppe_navigue_vers_l_accueil(app, client):
     assert reponse.status_code == 200
     assert reponse.headers["HX-Location"] == "/"
     assert "Location" not in reponse.headers
-    with app.app_context():
+    with en_tant_que(app):
         assert db.get_enveloppe(id) is None
 
 
@@ -598,7 +609,7 @@ def test_sante(anonyme):
 
 
 def test_base_en_mode_wal(app):
-    with app.app_context():
+    with en_tant_que(app):
         assert db.get_db().execute("PRAGMA journal_mode").fetchone()[0] == "wal"
 
 
@@ -620,7 +631,7 @@ def test_pages_protegees_sans_connexion(app, anonyme):
         assert reponse.headers["Location"] == "/connexion"
 
     assert anonyme.post("/enveloppes", data={"nom": "Pirate", "type": "demat"}).status_code == 303
-    with app.app_context():
+    with en_tant_que(app):
         assert db.lister_enveloppes() == []
 
 
@@ -723,7 +734,7 @@ def test_deconnexion(client):
 def test_nouveau_mot_de_passe_ferme_les_sessions(app, client):
     assert client.get("/").status_code == 200
 
-    with app.app_context():
+    with en_tant_que(app):
         db.enregistrer_utilisateur("test", generate_password_hash("un autre mot de passe", "pbkdf2:sha256:1"))
 
     assert client.get("/").status_code == 303
@@ -750,3 +761,103 @@ def test_commande_utilisateur(app, anonyme):
 def test_cle_secrete_conservee_entre_deux_demarrages(app):
     assert app.secret_key
     assert create_app().secret_key == app.secret_key
+
+
+# --- Comptes séparés et ordre des enveloppes ---
+
+
+@pytest.fixture
+def autre(app):
+    """Client connecté comme un second utilisateur, « bob »."""
+    with app.app_context():
+        db.enregistrer_utilisateur("bob", generate_password_hash(MOT_DE_PASSE, "pbkdf2:sha256:1"))
+    client = app.test_client()
+    assert connecter(client, nom="bob", ip="192.0.2.50").status_code == 303
+    return client
+
+
+def test_chaque_compte_ne_voit_que_ses_donnees(app, client, autre):
+    id = creer_enveloppe(app, "Courses")
+    poster_mouvement(client, id, "ajout", "10", motif="Secret")
+
+    page = autre.get("/").get_data(as_text=True)
+    assert "Courses" not in page and "Aucune enveloppe" in page
+    assert autre.get(f"/enveloppes/{id}").status_code == 404
+    assert poster_mouvement(autre, id, "ajout", "5").status_code == 404
+    assert autre.post(f"/enveloppes/{id}/renommer", data={"nom": "Volé"}).status_code == 404
+    assert autre.post(f"/enveloppes/{id}/supprimer").status_code == 404
+    with en_tant_que(app):
+        mouvement = db.lister_mouvements(id)[0]["id"]
+    assert autre.post(f"/mouvements/{mouvement}/supprimer").status_code == 404
+    assert "Secret" not in autre.get("/").get_data(as_text=True)
+    assert solde(app, id) == 1000
+
+
+def test_meme_nom_d_enveloppe_pour_deux_comptes(app, client, autre):
+    creer_enveloppe(app, "Courses")
+
+    assert autre.post("/enveloppes", data={"nom": "Courses", "type": "physique"}).status_code == 303
+    with en_tant_que(app, "bob"):
+        assert [e["nom"] for e in db.lister_enveloppes()] == ["Courses"]
+
+
+def test_ordre_des_enveloppes(app, client):
+    a, b, c = (creer_enveloppe(app, nom) for nom in ["A", "B", "C"])
+    banque = creer_enveloppe(app, "Banque", "demat")
+
+    assert client.post("/enveloppes/ordre", data={"id": [c, a, b]}).status_code == 204
+    with en_tant_que(app):
+        assert [e["id"] for e in db.lister_enveloppes()] == [banque, c, a, b]
+
+    nouvelle = creer_enveloppe(app, "D")
+    with en_tant_que(app):
+        assert [e["id"] for e in db.lister_enveloppes() if e["type"] == "physique"][-1] == nouvelle
+
+
+@pytest.mark.parametrize("cas", ["types_melanges", "incomplet", "doublon", "autre_compte"])
+def test_ordre_refuse(app, client, autre, cas):
+    a, b = creer_enveloppe(app, "A"), creer_enveloppe(app, "B")
+    banque = creer_enveloppe(app, "Banque", "demat")
+    autre.post("/enveloppes", data={"nom": "X", "type": "physique"})
+    with en_tant_que(app, "bob"):
+        x = db.lister_enveloppes()[0]["id"]
+    ids = {
+        "types_melanges": [a, b, banque],
+        "incomplet": [b],
+        "doublon": [b, a, a],
+        "autre_compte": [b, a, x],
+    }[cas]
+
+    assert client.post("/enveloppes/ordre", data={"id": ids}).status_code == 400
+
+
+def test_poignee_de_deplacement(app, client):
+    creer_enveloppe(app, "Courses")
+
+    assert 'class="poignee"' in client.get("/").get_data(as_text=True)
+
+
+def test_migration_d_une_base_sans_comptes(tmp_path, monkeypatch):
+    chemin = tmp_path / "ancienne.db"
+    ancienne = sqlite3.connect(chemin)
+    ancienne.executescript(
+        """
+        CREATE TABLE enveloppe (id INTEGER PRIMARY KEY, nom TEXT NOT NULL UNIQUE,
+            type TEXT NOT NULL, cree_le TEXT NOT NULL DEFAULT '2026-01-01');
+        CREATE TABLE mouvement (id INTEGER PRIMARY KEY,
+            enveloppe_id INTEGER NOT NULL REFERENCES enveloppe(id) ON DELETE CASCADE,
+            montant INTEGER NOT NULL, motif TEXT NOT NULL, date TEXT NOT NULL,
+            cree_le TEXT NOT NULL DEFAULT '2026-01-01');
+        INSERT INTO enveloppe (nom, type) VALUES ('Zoo', 'physique'), ('Banque', 'demat'), ('Abri', 'physique');
+        INSERT INTO mouvement (enveloppe_id, montant, motif, date) VALUES (1, 500, 'Ancien', '2026-01-01');
+        """
+    )
+    ancienne.close()
+    monkeypatch.setenv("DATABASE_PATH", str(chemin))
+    app = create_app()
+
+    with app.app_context():
+        db.enregistrer_utilisateur("premier", generate_password_hash(MOT_DE_PASSE, "pbkdf2:sha256:1"))
+    with en_tant_que(app, "premier"):
+        assert [e["nom"] for e in db.lister_enveloppes()] == ["Banque", "Abri", "Zoo"]
+        assert db.get_enveloppe(1)["solde"] == 500

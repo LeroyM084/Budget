@@ -25,8 +25,41 @@ def init_db():
     db = get_db()
     with current_app.open_resource("schema.sql") as fichier:
         db.executescript(fichier.read().decode("utf-8"))
+    migrer_enveloppes(db)
     # WAL : un worker Gunicorn peut lire pendant qu'un autre écrit.
     db.execute("PRAGMA journal_mode = WAL")
+
+
+def migrer_enveloppes(db):
+    """Ajoute propriétaire et position à une table enveloppe d'avant les comptes séparés.
+    SQLite ne sait pas modifier une contrainte UNIQUE : la table est reconstruite."""
+    colonnes = {ligne["name"] for ligne in db.execute("PRAGMA table_info(enveloppe)")}
+    if "utilisateur_id" in colonnes:
+        return
+    # Sans cela, supprimer l'ancienne table effacerait les mouvements en cascade.
+    db.execute("PRAGMA foreign_keys = OFF")
+    db.executescript(
+        """
+        BEGIN;
+        CREATE TABLE enveloppe_nouvelle (
+            id              INTEGER PRIMARY KEY,
+            utilisateur_id  INTEGER REFERENCES utilisateur(id) ON DELETE CASCADE,
+            nom             TEXT    NOT NULL CHECK (length(trim(nom)) > 0),
+            type            TEXT    NOT NULL CHECK (type IN ('physique', 'demat')),
+            position        INTEGER NOT NULL DEFAULT 0,
+            cree_le         TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+            UNIQUE (utilisateur_id, nom)
+        );
+        INSERT INTO enveloppe_nouvelle (id, utilisateur_id, nom, type, position, cree_le)
+        SELECT id, (SELECT MIN(id) FROM utilisateur), nom, type,
+               ROW_NUMBER() OVER (PARTITION BY type ORDER BY nom COLLATE NOCASE), cree_le
+        FROM enveloppe;
+        DROP TABLE enveloppe;
+        ALTER TABLE enveloppe_nouvelle RENAME TO enveloppe;
+        COMMIT;
+        """
+    )
+    db.execute("PRAGMA foreign_keys = ON")
 
 
 def commande_init_db():
@@ -49,15 +82,22 @@ def init_app(app):
         init_db()
 
 
+def proprietaire():
+    """Id de l'utilisateur connecté : toutes les requêtes sur les enveloppes s'y limitent."""
+    return g.utilisateur["id"]
+
+
 def lister_enveloppes():
     return get_db().execute(
         """
         SELECT e.id, e.nom, e.type, COALESCE(SUM(m.montant), 0) AS solde
         FROM enveloppe AS e
         LEFT JOIN mouvement AS m ON m.enveloppe_id = e.id
+        WHERE e.utilisateur_id = ?
         GROUP BY e.id
-        ORDER BY e.type, e.nom COLLATE NOCASE
-        """
+        ORDER BY e.type, e.position, e.nom COLLATE NOCASE
+        """,
+        (proprietaire(),),
     ).fetchall()
 
 
@@ -70,7 +110,9 @@ def totaux():
             COALESCE(SUM(m.montant), 0) AS global
         FROM mouvement AS m
         JOIN enveloppe AS e ON e.id = m.enveloppe_id
-        """
+        WHERE e.utilisateur_id = ?
+        """,
+        (proprietaire(),),
     ).fetchone()
 
 
@@ -80,30 +122,61 @@ def get_enveloppe(id):
         SELECT e.id, e.nom, e.type, COALESCE(SUM(m.montant), 0) AS solde
         FROM enveloppe AS e
         LEFT JOIN mouvement AS m ON m.enveloppe_id = e.id
-        WHERE e.id = ?
+        WHERE e.id = ? AND e.utilisateur_id = ?
         GROUP BY e.id
         """,
-        (id,),
+        (id, proprietaire()),
     ).fetchone()
 
 
 def creer_enveloppe(nom, type):
+    """Crée l'enveloppe à la fin de sa section."""
     db = get_db()
-    curseur = db.execute("INSERT INTO enveloppe (nom, type) VALUES (?, ?)", (nom, type))
+    curseur = db.execute(
+        """
+        INSERT INTO enveloppe (utilisateur_id, nom, type, position)
+        SELECT ?, ?, ?, COALESCE(MAX(position), 0) + 1
+        FROM enveloppe WHERE utilisateur_id = ? AND type = ?
+        """,
+        (proprietaire(), nom, type, proprietaire(), type),
+    )
     db.commit()
     return curseur.lastrowid
 
 
 def renommer_enveloppe(id, nom):
     db = get_db()
-    db.execute("UPDATE enveloppe SET nom = ? WHERE id = ?", (nom, id))
+    db.execute(
+        "UPDATE enveloppe SET nom = ? WHERE id = ? AND utilisateur_id = ?", (nom, id, proprietaire())
+    )
     db.commit()
 
 
 def supprimer_enveloppe(id):
     db = get_db()
-    db.execute("DELETE FROM enveloppe WHERE id = ?", (id,))
+    db.execute("DELETE FROM enveloppe WHERE id = ? AND utilisateur_id = ?", (id, proprietaire()))
     db.commit()
+
+
+def ordonner_enveloppes(ids):
+    """Range les enveloppes dans l'ordre donné. Refuse (False) si la liste ne correspond pas
+    exactement à une section complète (même type) de l'utilisateur."""
+    db = get_db()
+    lignes = db.execute(
+        "SELECT id, type FROM enveloppe WHERE utilisateur_id = ?", (proprietaire(),)
+    ).fetchall()
+    types = {ligne["type"] for ligne in lignes if ligne["id"] in ids}
+    if len(types) != 1 or len(set(ids)) != len(ids):
+        return False
+    section = {ligne["id"] for ligne in lignes if ligne["type"] in types}
+    if section != set(ids):
+        return False
+    db.executemany(
+        "UPDATE enveloppe SET position = ? WHERE id = ?",
+        [(position, id) for position, id in enumerate(ids, start=1)],
+    )
+    db.commit()
+    return True
 
 
 def lister_mouvements(enveloppe_id):
@@ -120,8 +193,13 @@ def lister_mouvements(enveloppe_id):
 
 def get_mouvement(id):
     return get_db().execute(
-        "SELECT id, enveloppe_id, montant, motif, date FROM mouvement WHERE id = ?",
-        (id,),
+        """
+        SELECT m.id, m.enveloppe_id, m.montant, m.motif, m.date
+        FROM mouvement AS m
+        JOIN enveloppe AS e ON e.id = m.enveloppe_id
+        WHERE m.id = ? AND e.utilisateur_id = ?
+        """,
+        (id, proprietaire()),
     ).fetchone()
 
 
@@ -137,10 +215,10 @@ def ajouter_mouvement(enveloppe_id, montant_centimes, motif, date):
 
 def supprimer_mouvement(id):
     """Supprime un mouvement et renvoie l'id de son enveloppe (None s'il n'existe pas)."""
-    db = get_db()
-    ligne = db.execute("SELECT enveloppe_id FROM mouvement WHERE id = ?", (id,)).fetchone()
+    ligne = get_mouvement(id)
     if ligne is None:
         return None
+    db = get_db()
     db.execute("DELETE FROM mouvement WHERE id = ?", (id,))
     db.commit()
     return ligne["enveloppe_id"]
@@ -149,13 +227,15 @@ def supprimer_mouvement(id):
 def motifs_recents(limite=10):
     lignes = get_db().execute(
         """
-        SELECT motif
-        FROM mouvement
-        GROUP BY motif
-        ORDER BY MAX(id) DESC
+        SELECT m.motif
+        FROM mouvement AS m
+        JOIN enveloppe AS e ON e.id = m.enveloppe_id
+        WHERE e.utilisateur_id = ?
+        GROUP BY m.motif
+        ORDER BY MAX(m.id) DESC
         LIMIT ?
         """,
-        (limite,),
+        (proprietaire(), limite),
     ).fetchall()
     return [ligne["motif"] for ligne in lignes]
 
@@ -177,7 +257,14 @@ def enregistrer_utilisateur(nom, mot_de_passe):
     db = get_db()
     existant = get_utilisateur_par_nom(nom)
     if existant is None:
-        db.execute("INSERT INTO utilisateur (nom, mot_de_passe) VALUES (?, ?)", (nom, mot_de_passe))
+        curseur = db.execute(
+            "INSERT INTO utilisateur (nom, mot_de_passe) VALUES (?, ?)", (nom, mot_de_passe)
+        )
+        # Données d'avant les comptes séparés : elles reviennent au premier compte créé.
+        db.execute(
+            "UPDATE enveloppe SET utilisateur_id = ? WHERE utilisateur_id IS NULL",
+            (curseur.lastrowid,),
+        )
     else:
         db.execute(
             "UPDATE utilisateur SET mot_de_passe = ? WHERE id = ?", (mot_de_passe, existant["id"])
