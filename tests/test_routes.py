@@ -1,3 +1,6 @@
+import json
+import re
+import struct
 from datetime import date, timedelta
 
 import pytest
@@ -305,7 +308,7 @@ def test_pages_chargent_htmx(client):
 
     assert 'src="/static/htmx.min.js" defer' in page
     assert '<body hx-boost="true"' in page
-    assert client.get("/static/htmx.min.js").status_code == 200
+    assert fichier_statique(client, "htmx.min.js").startswith(b"var htmx=")
 
 
 def test_htmx_creation_renvoie_des_fragments(app, client):
@@ -524,3 +527,47 @@ def test_modale_ouverte_quand_le_formulaire_sans_htmx_contient_une_erreur(app, c
 
     assert '<dialog id="modale-mouvement" aria-labelledby="titre-modale-mouvement">' in page_normale
     assert '<dialog id="modale-mouvement" aria-labelledby="titre-modale-mouvement" open>' in page_erreur
+
+
+# --- PWA (phase 5) ---
+
+
+def fichier_statique(client, nom):
+    with client.get(f"/static/{nom}") as reponse:
+        assert reponse.status_code == 200
+        return reponse.get_data()
+
+
+def test_manifest_et_icones(client):
+    manifest = json.loads(fichier_statique(client, "manifest.json"))
+
+    assert manifest["name"] == "Enveloppes"
+    assert manifest["short_name"]
+    assert manifest["start_url"] == "/"
+    assert manifest["display"] == "standalone"
+    icones = {(icone["sizes"], icone.get("purpose", "any")) for icone in manifest["icons"]}
+    assert {("192x192", "any"), ("512x512", "any"), ("512x512", "maskable")} <= icones
+    for icone in manifest["icons"]:
+        image = fichier_statique(client, icone["src"])
+        assert image[:8] == b"\x89PNG\r\n\x1a\n"
+        largeur, hauteur = struct.unpack(">II", image[16:24])
+        assert f"{largeur}x{hauteur}" == icone["sizes"]
+
+
+def test_pages_declarent_la_pwa(client):
+    page = client.get("/").get_data(as_text=True)
+
+    assert '<link rel="manifest" href="/static/manifest.json">' in page
+    assert '<link rel="apple-touch-icon" href="/static/icones/icon-192.png">' in page
+    assert '<meta name="apple-mobile-web-app-capable" content="yes">' in page
+
+
+def test_couleurs_pwa_identiques_au_fond_du_css(client):
+    manifest = json.loads(fichier_statique(client, "manifest.json"))
+    css = fichier_statique(client, "style.css").decode()
+    fond_clair, fond_sombre = re.findall(r"--fond: (#[0-9a-f]{6});", css)
+    page = client.get("/").get_data(as_text=True)
+
+    assert manifest["background_color"] == manifest["theme_color"] == fond_clair
+    assert f'name="theme-color" content="{fond_clair}" media="(prefers-color-scheme: light)"' in page
+    assert f'name="theme-color" content="{fond_sombre}" media="(prefers-color-scheme: dark)"' in page

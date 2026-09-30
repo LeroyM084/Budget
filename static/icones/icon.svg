@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Fond plein cadre et dessin dans le cercle central de 80 % : l'icône reste « maskable ». -->
+  <rect width="512" height="512" fill="#2f5bea"/>
+  <circle cx="256" cy="193" r="72" fill="#f6c343"/>
+  <circle cx="256" cy="193" r="50" fill="none" stroke="#dca32a" stroke-width="10"/>
+  <rect x="116" y="201" width="280" height="190" rx="26" fill="#ffffff"/>
+  <path d="M140 225 L256 309 L372 225" fill="none" stroke="#2f5bea" stroke-width="22"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

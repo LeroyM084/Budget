@@ -23,3 +23,13 @@ La base SQLite est créée automatiquement au démarrage dans `instance/envelopp
 ```sh
 pytest
 ```
+
+## Icônes
+
+L'icône source est `static/icones/icon.svg`. Pour régénérer les PNG (ImageMagick) :
+
+```sh
+cd static/icones
+magick -density 96 -background none icon.svg -alpha off -strip icon-512.png
+magick -density 36 -background none icon.svg -alpha off -strip icon-192.png
+```
