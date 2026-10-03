@@ -11,7 +11,7 @@ from werkzeug.security import generate_password_hash
 
 import auth
 import db
-from app import create_app, libelle_jour
+from app import bilan_par_mois, create_app, libelle_jour
 
 INSECABLE = "\u00a0"
 HTMX = {"HX-Request": "true"}
@@ -864,3 +864,91 @@ def test_migration_d_une_base_sans_comptes(tmp_path, monkeypatch):
     with en_tant_que(app, "premier"):
         assert [e["nom"] for e in db.lister_enveloppes()] == ["Banque", "Abri", "Zoo"]
         assert db.get_enveloppe(1)["solde"] == 500
+
+
+def test_epargne_exclue_des_totaux(app, client):
+    courses = creer_enveloppe(app, "Courses", "physique")
+    livret = creer_enveloppe(app, "Livret", "epargne")
+    with en_tant_que(app):
+        db.ajouter_mouvement(courses, 1000, "Dépôt", "2026-01-01")
+        db.ajouter_mouvement(livret, 5000, "Dépôt", "2026-01-01")
+        totaux = db.totaux()
+        assert (totaux["global"], totaux["epargne"]) == (1000, 5000)
+    page = client.get("/").get_data(as_text=True)
+    assert "Épargne" in page and "Livret" in page
+
+
+def test_migration_ajoute_le_type_epargne(tmp_path, monkeypatch):
+    chemin = tmp_path / "ancienne.db"
+    ancienne = sqlite3.connect(chemin)
+    ancienne.executescript(
+        """
+        CREATE TABLE utilisateur (id INTEGER PRIMARY KEY, nom TEXT NOT NULL UNIQUE,
+            mot_de_passe TEXT NOT NULL, cree_le TEXT NOT NULL DEFAULT '2026-01-01');
+        CREATE TABLE enveloppe (id INTEGER PRIMARY KEY,
+            utilisateur_id INTEGER REFERENCES utilisateur(id) ON DELETE CASCADE,
+            nom TEXT NOT NULL, type TEXT NOT NULL CHECK (type IN ('physique', 'demat')),
+            position INTEGER NOT NULL DEFAULT 0, cree_le TEXT NOT NULL DEFAULT '2026-01-01',
+            UNIQUE (utilisateur_id, nom));
+        INSERT INTO utilisateur (nom, mot_de_passe) VALUES ('premier', 'x');
+        INSERT INTO enveloppe (utilisateur_id, nom, type, position) VALUES (1, 'Zoo', 'physique', 7);
+        """
+    )
+    ancienne.close()
+    monkeypatch.setenv("DATABASE_PATH", str(chemin))
+    app = create_app()
+    with en_tant_que(app, "premier"):
+        db.creer_enveloppe("Livret", "epargne")
+        assert [(e["nom"], e["type"]) for e in db.lister_enveloppes()] == [
+            ("Livret", "epargne"), ("Zoo", "physique")
+        ]
+
+
+def test_decouvert_active_dans_le_menu(app, client):
+    courses = creer_enveloppe(app, "Courses", "physique")
+    retrait = {"sens": "retrait", "montant": "5", "motif": "Pain", "date": "2026-01-01"}
+    assert client.post(f"/enveloppes/{courses}/mouvements", data=retrait).status_code == 422
+
+    assert client.post(f"/enveloppes/{courses}/decouvert", data={"autorise": "1"}).status_code == 303
+    assert client.post(f"/enveloppes/{courses}/mouvements", data=retrait).status_code == 303
+    page = client.get(f"/enveloppes/{courses}").get_data(as_text=True)
+    assert 'montant-solde negatif' in page
+
+    # Solde négatif : interdire le découvert est refusé, avec une alerte.
+    reponse = client.post(f"/enveloppes/{courses}/decouvert", data={})
+    assert reponse.status_code == 422
+    assert 'class="alerte"' in reponse.get_data(as_text=True)
+    with en_tant_que(app):
+        assert db.get_enveloppe(courses)["decouvert_autorise"]
+
+    client.post(f"/enveloppes/{courses}/mouvements", data={**retrait, "sens": "ajout"})
+    assert client.post(f"/enveloppes/{courses}/decouvert", data={}).status_code == 303
+    with en_tant_que(app):
+        assert not db.get_enveloppe(courses)["decouvert_autorise"]
+
+
+def test_bilan_par_quinzaine(app, client):
+    especes = creer_enveloppe(app, "Poche", "physique")
+    livret = creer_enveloppe(app, "Livret", "epargne")
+    def mouvement(id, sens, montant, jour):
+        client.post(f"/enveloppes/{id}/mouvements",
+                    data={"sens": sens, "montant": montant, "motif": "Test", "date": jour})
+    mouvement(especes, "ajout", "100", "2026-03-01")
+    mouvement(especes, "retrait", "12", "2026-03-14")
+    mouvement(especes, "retrait", "8", "2026-03-15")
+    mouvement(livret, "ajout", "50", "2026-02-20")
+    mouvement(livret, "ajout", "30", "2026-03-02")
+
+    with en_tant_que(app):
+        mois = bilan_par_mois(db.bilan_quinzaines("physique"), db.bilan_quinzaines("epargne"),
+                              aujourdhui=date(2026, 5, 10))
+    assert [m["libelle"] for m in mois] == ["Février 2026", "Mars 2026", "Avril 2026", "Mai 2026"]
+    mars = mois[1]
+    assert mars["especes"]["sorties"] == 2000
+    assert mars["especes"]["quinzaines"][1]["sorties"] == 1200
+    assert mars["especes"]["quinzaines"][2]["sorties"] == 800
+    assert mars["epargne"]["solde"] == 8000
+    assert mois[-1]["epargne"]["solde"] == 8000 and not mois[-1]["epargne"]["quinzaines"]
+
+    page = client.get("/bilan").get_data(as_text=True)
+    assert "Dépenses en espèces" in page and "Mars 2026" in page and "data-courant" in page

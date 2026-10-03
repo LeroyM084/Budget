@@ -1,12 +1,14 @@
 from datetime import date, timedelta
 
-from flask import Flask, abort, redirect, render_template, request, url_for
+from flask import Flask, abort, g, redirect, render_template, request, url_for
 
 import auth
 import db
 from argent import formater_euros, parser_montant
 
-TYPES = {"physique": "Physique", "demat": "Dématérialisé"}
+TYPES = {"physique": "Physique", "demat": "Dématérialisé", "epargne": "Épargne"}
+# Types comptés dans les totaux du haut de page (l'épargne en est exclue).
+TYPES_TOTAUX = ("physique", "demat")
 MOTIF_MAX = 100
 JOURS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
 MOIS = (
@@ -22,6 +24,7 @@ def create_app():
     app.add_template_filter(formater_euros, "euros")
     app.add_template_filter(libelle_jour)
     app.jinja_env.globals["TYPES"] = TYPES
+    app.jinja_env.globals["TYPES_TOTAUX"] = TYPES_TOTAUX
 
     @app.before_request
     def refuser_ecritures_intersites():
@@ -42,6 +45,12 @@ def create_app():
     @app.get("/")
     def accueil():
         return page_accueil()
+
+    @app.get("/bilan")
+    def bilan():
+        return render_template("bilan.html", mois=bilan_par_mois(
+            db.bilan_quinzaines("physique"), db.bilan_quinzaines("epargne")
+        ))
 
     @app.get("/sante")
     def sante():
@@ -143,6 +152,20 @@ def create_app():
         db.renommer_enveloppe(id, nom)
         return redirect(url_for("voir_enveloppe", id=id), code=303)
 
+    @app.post("/enveloppes/<int:id>/decouvert")
+    def changer_decouvert(id):
+        enveloppe = trouver_enveloppe(id)
+        autorise = request.form.get("autorise") == "1"
+        if not autorise and enveloppe["solde"] < 0:
+            alerter(
+                "Découvert toujours nécessaire",
+                f"Le solde est de {formater_euros(enveloppe['solde'])}. "
+                "Ramenez-le à zéro ou plus avant d'interdire le solde négatif.",
+            )
+            return page_enveloppe(enveloppe), 422
+        db.changer_decouvert(id, autorise)
+        return redirect(url_for("voir_enveloppe", id=id), code=303)
+
     @app.post("/enveloppes/<int:id>/supprimer")
     def supprimer_enveloppe(id):
         trouver_enveloppe(id)
@@ -179,6 +202,11 @@ def create_app():
 def requete_htmx():
     """Requête hx-post d'un fragment ; une navigation hx-boost attend une page complète."""
     return request.headers.get("HX-Request") == "true" and request.headers.get("HX-Boosted") != "true"
+
+
+def alerter(titre, message):
+    """Affiche une alerte modale dans la prochaine page complète rendue (voir _alertes.html)."""
+    g.setdefault("alertes", []).append({"titre": titre, "message": message})
 
 
 def fragment(template, **contexte):
@@ -220,6 +248,41 @@ def libelle_jour(date_iso, aujourdhui=None):
     return libelle.capitalize()
 
 
+def bilan_par_mois(especes, epargne, aujourdhui=None):
+    """Un bilan par mois, du premier mouvement jusqu'au mois en cours (le dernier de la liste),
+    sans trou : un mois sans mouvement a des quinzaines vides et garde le solde d'épargne."""
+    aujourdhui = aujourdhui or date.today()
+    especes = {(l["mois"], l["quinzaine"]): l for l in especes}
+    epargne = {(l["mois"], l["quinzaine"]): l for l in epargne}
+    premier = min([cle[0] for cle in [*especes, *epargne]], default=aujourdhui.isoformat()[:7])
+    annee, numero = map(int, premier.split("-"))
+    resultat = []
+    solde = 0
+    while (annee, numero) <= (aujourdhui.year, aujourdhui.month):
+        cle = f"{annee:04d}-{numero:02d}"
+        mois = {
+            "cle": cle,
+            "libelle": f"{MOIS[numero - 1]} {annee}".capitalize(),
+            "especes": {"quinzaines": {}, "sorties": 0},
+            "epargne": {"quinzaines": {}, "entrees": 0, "sorties": 0},
+        }
+        for quinzaine in (1, 2):
+            if ligne := especes.get((cle, quinzaine)):
+                mois["especes"]["quinzaines"][quinzaine] = {"sorties": ligne["sorties"]}
+                mois["especes"]["sorties"] += ligne["sorties"]
+            if ligne := epargne.get((cle, quinzaine)):
+                solde += ligne["entrees"] - ligne["sorties"]
+                mois["epargne"]["quinzaines"][quinzaine] = {
+                    "entrees": ligne["entrees"], "sorties": ligne["sorties"],
+                }
+                mois["epargne"]["entrees"] += ligne["entrees"]
+                mois["epargne"]["sorties"] += ligne["sorties"]
+        mois["epargne"]["solde"] = solde
+        resultat.append(mois)
+        annee, numero = (annee + 1, 1) if numero == 12 else (annee, numero + 1)
+    return resultat
+
+
 def trouver_enveloppe(id):
     enveloppe = db.get_enveloppe(id)
     if enveloppe is None:
@@ -228,8 +291,8 @@ def trouver_enveloppe(id):
 
 
 def decouvert_interdit(enveloppe, nouveau_solde):
-    """Seules les enveloppes démat peuvent avoir un solde négatif."""
-    return enveloppe["type"] == "physique" and nouveau_solde < 0
+    """Le solde ne passe sous zéro que si l'enveloppe autorise le découvert."""
+    return not enveloppe["decouvert_autorise"] and nouveau_solde < 0
 
 
 def valider_nom(nom, sauf_id=None):

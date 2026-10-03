@@ -2,10 +2,11 @@
   {% if enveloppes %}
     <section class="carte-total" aria-label="Totaux">
       <p class="etiquette">Total</p>
-      <p class="total">{{ totaux.global|euros }}</p>
+      <p class="total{% if totaux.global < 0 %} negatif{% endif %}">{{ totaux.global|euros }}</p>
       <dl class="detail-totaux">
-        {% for type, libelle in TYPES.items() %}
-          <div><dt>{{ libelle }}</dt><dd>{{ totaux[type]|euros }}</dd></div>
+        {% for type in TYPES_TOTAUX %}
+          {% set libelle = TYPES[type] %}
+          <div><dt>{{ libelle }}</dt><dd{% if totaux[type] < 0 %} class="negatif"{% endif %}>{{ totaux[type]|euros }}</dd></div>
         {% endfor %}
       </dl>
     </section>
@@ -15,6 +16,12 @@
       {% if cartes %}
         <section class="groupe">
           <h2 class="titre-section">{{ libelle }}</h2>
+          {% if type == "epargne" %}
+            <section class="carte-total" aria-label="Total épargne">
+              <p class="etiquette">Total épargne</p>
+              <p class="total{% if totaux.epargne < 0 %} negatif{% endif %}">{{ totaux.epargne|euros }}</p>
+            </section>
+          {% endif %}
           <ul class="cartes">
             {% for enveloppe in cartes %}
               {% include "_carte_enveloppe.html" %}

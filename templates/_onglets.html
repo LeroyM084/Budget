@@ -1,0 +1,4 @@
+<nav class="onglets" aria-label="Sections">
+  <a href="{{ url_for('accueil') }}"{% if request.endpoint == 'accueil' %} aria-current="page"{% endif %}>Enveloppes</a>
+  <a href="{{ url_for('bilan') }}"{% if request.endpoint == 'bilan' %} aria-current="page"{% endif %}>Bilan</a>
+</nav>

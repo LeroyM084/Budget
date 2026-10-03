@@ -1,0 +1,11 @@
+{# Alertes ajoutées par alerter() côté serveur. Sans JavaScript, elles restent ouvertes dans la page. #}
+{% for alerte in g.alertes or [] %}
+<dialog class="alerte" role="alertdialog" aria-labelledby="alerte-titre-{{ loop.index }}">
+  <form method="dialog" class="alerte-contenu">
+    <span class="alerte-icone" aria-hidden="true">!</span>
+    <h2 id="alerte-titre-{{ loop.index }}">{{ alerte.titre }}</h2>
+    <p>{{ alerte.message }}</p>
+    <button class="bouton" autofocus>Compris</button>
+  </form>
+</dialog>
+{% endfor %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block titre %}Bilan · Enveloppes{% endblock %}
+
+{% set QUINZAINES = ((1, "Du 1er au 14"), (2, "Du 15 à la fin")) %}
+
+{% block contenu %}
+{% include "_onglets.html" %}
+<h1 class="visuellement-cache">Bilan</h1>
+
+{# Carrousel : un panneau par mois, le mois en cours à droite. Glissement au doigt sur mobile,
+   flèches sur ordinateur (voir base.html). #}
+<div class="carrousel">
+  <button type="button" class="carrousel-fleche" data-sens="-1" aria-label="Mois précédent">‹</button>
+  <div class="carrousel-piste" tabindex="0">
+    {% for m in mois %}
+    <section class="bilan-mois" aria-label="{{ m.libelle }}"{% if loop.last %} data-courant{% endif %}>
+      <h2>{{ m.libelle }}</h2>
+
+      <article class="bilan-bloc">
+        <header>
+          <h3>Dépenses en espèces</h3>
+          <span class="montant">{{ m.especes.sorties|euros }}</span>
+        </header>
+        <ul>
+          {% for numero, etiquette in QUINZAINES %}
+          {% set q = m.especes.quinzaines.get(numero) %}
+          <li>
+            <span class="bilan-periode">{{ etiquette }}</span>
+            {% if q %}<span class="bilan-detail">{{ q.sorties|euros }}</span>
+            {% else %}<span class="bilan-vide">—</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </article>
+
+      <article class="bilan-bloc">
+        <header>
+          <h3>Épargne</h3>
+          <span class="montant{% if m.epargne.solde < 0 %} negatif{% endif %}">{{ m.epargne.solde|euros }}</span>
+        </header>
+        <ul>
+          {% for numero, etiquette in QUINZAINES %}
+          {% set q = m.epargne.quinzaines.get(numero) %}
+          <li>
+            <span class="bilan-periode">{{ etiquette }}</span>
+            {% if q %}
+            <span class="bilan-detail">
+              {% if q.entrees %}<span class="positif">+{{ q.entrees|euros }}</span>{% endif %}
+              {% if q.sorties %}<span class="negatif">−{{ q.sorties|euros }}</span>{% endif %}
+            </span>
+            {% else %}<span class="bilan-vide">—</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        <p class="bilan-pied">Versé {{ m.epargne.entrees|euros }} · retiré {{ m.epargne.sorties|euros }}</p>
+      </article>
+    </section>
+    {% endfor %}
+  </div>
+  <button type="button" class="carrousel-fleche" data-sens="1" aria-label="Mois suivant">›</button>
+</div>
+{% endblock %}

@@ -114,6 +114,37 @@
                               { passive: false });
     document.addEventListener("contextmenu", (e) => { if (e.target.closest(".cartes li")) e.preventDefault(); });
 
+    // Alertes envoyées par le serveur (alerter() dans app.py) : ouvertes en modale.
+    function ouvrirAlertes() {
+      document.querySelectorAll("dialog.alerte:not([open])").forEach((d) => d.showModal());
+    }
+    document.addEventListener("DOMContentLoaded", ouvrirAlertes);
+    document.addEventListener("htmx:afterSettle", ouvrirAlertes);
+
+    // Carrousel du bilan : s'ouvre sur le mois en cours ; les flèches défilent d'un mois.
+    function preparerCarrousels() {
+      document.querySelectorAll(".carrousel-piste:not([data-pret])").forEach((piste) => {
+        piste.dataset.pret = "";
+        const courant = piste.querySelector("[data-courant]");
+        if (courant) piste.scrollLeft = courant.offsetLeft - piste.offsetLeft;
+        const majFleches = () => {
+          const [avant, apres] = piste.parentElement.querySelectorAll(".carrousel-fleche");
+          avant.disabled = piste.scrollLeft <= 1;
+          apres.disabled = piste.scrollLeft >= piste.scrollWidth - piste.clientWidth - 1;
+        };
+        piste.addEventListener("scroll", majFleches, { passive: true });
+        majFleches();
+      });
+    }
+    document.addEventListener("DOMContentLoaded", preparerCarrousels);
+    document.addEventListener("htmx:afterSettle", preparerCarrousels);
+    document.addEventListener("click", (evenement) => {
+      const fleche = evenement.target.closest(".carrousel-fleche");
+      if (!fleche) return;
+      const piste = fleche.parentElement.querySelector(".carrousel-piste");
+      piste.scrollBy({ left: piste.clientWidth * fleche.dataset.sens, behavior: "smooth" });
+    });
+
     document.addEventListener("htmx:afterRequest", (evenement) => {
       if (evenement.detail.successful) {
         evenement.target.closest("dialog")?.close();
@@ -133,5 +164,6 @@
   <main>
     {% block contenu %}{% endblock %}
   </main>
+  {% include "_alertes.html" %}
 </body>
 </html>

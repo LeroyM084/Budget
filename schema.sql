@@ -5,8 +5,9 @@ CREATE TABLE IF NOT EXISTS enveloppe (
     id              INTEGER PRIMARY KEY,
     utilisateur_id  INTEGER REFERENCES utilisateur(id) ON DELETE CASCADE,
     nom             TEXT    NOT NULL CHECK (length(trim(nom)) > 0),
-    type            TEXT    NOT NULL CHECK (type IN ('physique', 'demat')),
+    type            TEXT    NOT NULL CHECK (type IN ('physique', 'demat', 'epargne')),
     position        INTEGER NOT NULL DEFAULT 0,               -- ordre choisi dans sa section
+    decouvert_autorise INTEGER NOT NULL DEFAULT 0,            -- 1 : le solde peut passer sous zéro
     cree_le         TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
     UNIQUE (utilisateur_id, nom)
 );

@@ -27,6 +27,18 @@
         </div>
         <button class="bouton">Renommer</button>
       </form>
+      <form class="formulaire" method="post" action="{{ url_for('changer_decouvert', id=enveloppe.id) }}"
+            hx-push-url="false" hx-swap="innerHTML show:none">
+        <label class="interrupteur option">
+          <span class="option-texte">
+            <span class="option-titre">Autoriser le solde négatif</span>
+            <span class="option-aide">Permet de dépenser plus que le solde disponible.</span>
+          </span>
+          <input type="checkbox" role="switch" name="autorise" value="1" onchange="this.form.requestSubmit()"
+                 {%- if enveloppe.decouvert_autorise %} checked{% endif %}>
+        </label>
+        <noscript><button class="bouton">Enregistrer</button></noscript>
+      </form>
       {% set url = url_for('supprimer_enveloppe', id=enveloppe.id) %}
       <form method="post" action="{{ url }}"
             hx-post="{{ url }}" hx-confirm="Supprimer cette enveloppe et tous ses mouvements ?">
